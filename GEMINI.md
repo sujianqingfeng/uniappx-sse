@@ -52,7 +52,7 @@ Alternatively, you can build it manually using Xcode:
 The core logic for the plugin is located in the following files:
 
 *   **Android**: 
-    * Plugin implementation: `sse-android-plugin/sse-android-lib/src/main/java/com/example/android_lib/SayHiModule.kt`
+    * Plugin implementation: `sse-android-plugin/sse-sse-lib/src/main/java/com/example/android_lib/SayHiModule.kt`
     * Plugin interface: `sse-uniapp-project/uni_modules//utssdk/app-android/index.uts`
 *   **iOS**: 
     * Plugin implementation: `SSEFramework/SSEFramework/ios_framework.swift`

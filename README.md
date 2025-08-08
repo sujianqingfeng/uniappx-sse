@@ -12,7 +12,7 @@
 ### UniApp X 集成演示
 | Android 平台调用 | iOS 平台调用 |
 |-----------------|--------------|
-| ![UniApp Call Android](screenshots/uniapp-call-sse-android-lib.gif) | ![UniApp Call iOS](screenshots/uniapp-call-SSEFramework.gif) |
+| ![UniApp Call Android](screenshots/uniapp-call-sse-sse-lib.gif) | ![UniApp Call iOS](screenshots/uniapp-call-SSEFramework.gif) |
 
 **演示说明：**
 - **原生演示**：展示在 Android Studio 和 Xcode 中独立运行原生库的功能
@@ -31,7 +31,7 @@
 ```
 starter-uniapp-native-plugin/
 ├── sse-android-plugin/          # Android 原生库项目
-│   ├── sse-android-lib/            # Android 库模块
+│   ├── sse-sse-lib/            # Android 库模块
 │   ├── app/                    # Android 测试应用
 │   ├── build-aar.sh            # Android AAR 构建脚本 (Linux/macOS)
 │   └── build-aar.bat           # Android AAR 构建脚本 (Windows)
@@ -143,10 +143,10 @@ cd SSEFramework
 cd sse-android-plugin
 
 # 构建 debug 版本
-./gradlew :sse-android-lib:assembleDebug
+./gradlew :sse-sse-lib:assembleDebug
 
 # 构建 release 版本
-./gradlew :sse-android-lib:assembleRelease
+./gradlew :sse-sse-lib:assembleRelease
 
 # 清理构建缓存
 ./gradlew clean
@@ -176,7 +176,7 @@ xcodebuild clean -project SSEFramework.xcodeproj -scheme SSEFramework
 #### Android 平台
 ```bash
 # 1. 打开 Android Studio，导入 sse-android-plugin 项目
-# 2. 构建并运行 sse-android-lib 模块
+# 2. 构建并运行 sse-sse-lib 模块
 # 3. 运行 app 模块测试原生功能
 ```
 
@@ -219,10 +219,10 @@ xcodebuild clean -project SSEFramework.xcodeproj -scheme SSEFramework
 **Android AAR 包输出：**
 构建完成后，AAR 文件将生成在：
 ```
-sse-android-plugin/sse-android-lib/build/outputs/aar/
-├── sse-android-lib-debug.aar      # Debug 版本
-├── sse-android-lib-release.aar    # Release 版本
-└── sse-android-lib-release.aar    # Release-minified 版本 (混淆后)
+sse-android-plugin/sse-sse-lib/build/outputs/aar/
+├── sse-sse-lib-debug.aar      # Debug 版本
+├── sse-sse-lib-release.aar    # Release 版本
+└── sse-sse-lib-release.aar    # Release-minified 版本 (混淆后)
 ```
 
 **iOS Framework 输出：**
@@ -252,7 +252,7 @@ sse-uniapp-project/uni_modules//utssdk/app-ios/Frameworks/
 
 #### Android (Kotlin)
 ```kotlin
-// sse-android-plugin/sse-android-lib/src/main/java/com/hens/android_lib/SayHiLib.kt
+// sse-android-plugin/sse-sse-lib/src/main/java/com/hens/android_lib/SayHiLib.kt
 public class SayHiLib {
     public fun say(str: String): String {
         val currentTime = Date()

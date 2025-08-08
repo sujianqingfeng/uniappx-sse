@@ -1,0 +1,120 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "SSEFramework",
+    "printedName": "SSEFramework",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "SSEFramework",
+        "declAttributes": [
+          "RawDocComment"
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "SayHiFramework",
+        "printedName": "SayHiFramework",
+        "children": [
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "SayHiFramework",
+                "printedName": "SSEFramework.SayHiFramework",
+                "usr": "s:12SSEFramework14SayHiFrameworkC"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:12SSEFramework14SayHiFrameworkCACycfc",
+            "mangledName": "$s12SSEFramework14SayHiFrameworkCACycfc",
+            "moduleName": "SSEFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Function",
+            "name": "say",
+            "printedName": "say(_:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:12SSEFramework14SayHiFrameworkC3sayyS2SF",
+            "mangledName": "$s12SSEFramework14SayHiFrameworkC3sayyS2SF",
+            "moduleName": "SSEFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "getVersion",
+            "printedName": "getVersion()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:12SSEFramework14SayHiFrameworkC10getVersionSSyF",
+            "mangledName": "$s12SSEFramework14SayHiFrameworkC10getVersionSSyF",
+            "moduleName": "SSEFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:12SSEFramework14SayHiFrameworkC",
+        "mangledName": "$s12SSEFramework14SayHiFrameworkC",
+        "moduleName": "SSEFramework",
+        "declAttributes": [
+          "AccessControl"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          }
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": []
+}

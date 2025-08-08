@@ -104,16 +104,21 @@ do_replacements() {
   add_pair_if_set "${ANDROID_ROOT_DIR_FROM}" "${ANDROID_ROOT_DIR_TO}"
 
   # iOS framework names and bundle ids
-  add_pair_if_set "${IOS_FRAMEWORK_PROJECT_NAME_FROM}" "${IOS_FRAMEWORK_PROJECT_NAME_TO}"
-  add_pair_if_set "${IOS_FRAMEWORK_PRODUCT_NAME_FROM}" "${IOS_FRAMEWORK_PRODUCT_NAME_TO}"
-  add_pair_if_set "${IOS_FRAMEWORK_BUNDLE_ID_FROM}" "${IOS_FRAMEWORK_BUNDLE_ID_TO}"
+  add_pair_if_set \"${IOS_FRAMEWORK_PROJECT_NAME_FROM}\" \"${IOS_FRAMEWORK_PROJECT_NAME_TO}\"
+  add_pair_if_set \"${IOS_FRAMEWORK_PRODUCT_NAME_FROM}\" \"${IOS_FRAMEWORK_PRODUCT_NAME_TO}\"
+  add_pair_if_set \"${IOS_FRAMEWORK_BUNDLE_ID_FROM}\" \"${IOS_FRAMEWORK_BUNDLE_ID_TO}\"
+  
+  # iOS framework name in build script\n  add_pair_if_set \"FRAMEWORK_NAME=\\\"${IOS_FRAMEWORK_PRODUCT_NAME_FROM}\\\"\" \"FRAMEWORK_NAME=\\\"${IOS_FRAMEWORK_PRODUCT_NAME_TO}\\\"\"
 
   # iOS app project and bundle id
-  add_pair_if_set "${IOS_APP_PROJECT_NAME_FROM}" "${IOS_APP_PROJECT_NAME_TO}"
-  add_pair_if_set "${IOS_APP_BUNDLE_ID_FROM}" "${IOS_APP_BUNDLE_ID_TO}"
+  add_pair_if_set \"${IOS_APP_PROJECT_NAME_FROM}\" \"${IOS_APP_PROJECT_NAME_TO}\"
+  add_pair_if_set \"${IOS_APP_BUNDLE_ID_FROM}\" \"${IOS_APP_BUNDLE_ID_TO}\"
   
   # iOS directory paths in build scripts
-  add_pair_if_set "../${IOS_APP_DIR_FROM}" "../${IOS_APP_DIR_TO}"
+  add_pair_if_set \"../${IOS_APP_DIR_FROM}\" \"../${IOS_APP_DIR_TO}\"
+  
+  # iOS playground directory in build script
+  add_pair_if_set \"../${IOS_APP_DIR_FROM}/${IOS_APP_PROJECT_NAME_FROM}\" \"../${IOS_APP_DIR_TO}/${IOS_APP_PROJECT_NAME_TO}\"
 
   # UniApp dir and UTS module info
   add_pair_if_set "${UNIAPP_DIR_FROM}" "${UNIAPP_DIR_TO}"
@@ -121,6 +126,11 @@ do_replacements() {
   add_pair_if_set "${UTS_MODULE_ID_FROM}" "${UTS_MODULE_ID_TO}"
   add_pair_if_set "${UTS_MODULE_DISPLAY_NAME_FROM}" "${UTS_MODULE_DISPLAY_NAME_TO}"
   add_pair_if_set "${UTS_MODULE_DESCRIPTION_FROM}" "${UTS_MODULE_DESCRIPTION_TO}"
+  
+  # Additional iOS framework replacements
+  # iOS framework name in Xcode project file
+  add_pair_if_set "path = ${IOS_FRAMEWORK_PRODUCT_NAME_FROM}.framework" "path = ${IOS_FRAMEWORK_PRODUCT_NAME_TO}.framework"
+  add_pair_if_set "${IOS_FRAMEWORK_PRODUCT_NAME_FROM}.framework" "${IOS_FRAMEWORK_PRODUCT_NAME_TO}.framework"
 
   if (( ${#pairs[@]} == 0 )); then
     echo "No content replacements to apply."

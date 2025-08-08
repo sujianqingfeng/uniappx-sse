@@ -46,7 +46,7 @@ The plugin follows UTS (Uni-App TypeScript) plugin architecture:
 - **Android Implementation**: `uni_modules//utssdk/app-android/index.uts` - Android-specific implementation
 - **iOS Implementation**: `uni_modules//utssdk/app-ios/index.uts` - iOS-specific implementation
 - **Native Libraries**: 
-  - Android: `sse-android-plugin/sse-android-lib/src/main/java/com/hens/android_lib/SayHiLib.kt`
+  - Android: `sse-android-plugin/sse-sse-lib/src/main/java/com/hens/android_lib/SayHiLib.kt`
   - iOS: `SSEFramework/SSEFramework/ios_framework.swift`
 
 ### Configuration Files
@@ -56,7 +56,7 @@ The plugin follows UTS (Uni-App TypeScript) plugin architecture:
 ### Key Implementation Details
 
 #### Native Code Integration
-- **Android**: Uses AAR library (`sse-android-lib-debug.aar`) located in `libs/` directory
+- **Android**: Uses AAR library (`sse-sse-lib-debug.aar`) located in `libs/` directory
 - **iOS**: Uses framework (`ios_framework.framework`) located in `Frameworks/` directory
 
 #### API Interface
@@ -103,7 +103,7 @@ sse-uniapp-project/
 └── main.uts                       # App entry point
 
 sse-android-plugin/
-└── sse-android-lib/
+└── sse-sse-lib/
     └── src/main/java/com/hens/android_lib/
         └── SayHiLib.kt            # Android native implementation
 
