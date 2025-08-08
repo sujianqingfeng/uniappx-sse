@@ -7,18 +7,20 @@
 import SwiftUI
 import SSEFramework
 
-class ContentViewModel: ObservableObject, SSEManagerDelegate {
+class ContentViewModel: NSObject, ObservableObject, SSEManagerDelegate {
     // 创建 SSEManager 实例
-    private let sseManager = SSEManager()
+    private let sseManager: SSEManager
     
     // 状态变量来存储结果
     @Published var resultText: String = "点击按钮开始 SSE 连接"
     @Published var isConnected: Bool = false
     @Published var requestId: String = "sse-request-1"
     
-    init() {
+    override init() {
+        self.sseManager = SSEManager()
+        super.init()
         // 设置代理
-        sseManager.delegate = self
+        self.sseManager.delegate = self
     }
     
     /// 开始 SSE 连接

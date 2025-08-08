@@ -9,72 +9,38 @@ import Foundation
 /// SSE 事件回调协议
 public protocol SSEManagerDelegate: AnyObject {
     /// 接收到消息
-    /// - Parameters:
-    ///   - manager: SSE 管理器实例
-    ///   - message: 消息内容
-    ///   - requestId: 请求 ID
     func sseManager(_ manager: SSEManager, didReceiveMessage message: String, requestId: String)
-    
     /// 连接打开
-    /// - Parameters:
-    ///   - manager: SSE 管理器实例
-    ///   - requestId: 请求 ID
     func sseManager(_ manager: SSEManager, didOpenWithRequestId requestId: String)
-    
     /// 连接错误
-    /// - Parameters:
-    ///   - manager: SSE 管理器实例
-    ///   - error: 错误信息
-    ///   - requestId: 请求 ID
     func sseManager(_ manager: SSEManager, didFailWithError error: Error, requestId: String)
-    
     /// 连接关闭
-    /// - Parameters:
-    ///   - manager: SSE 管理器实例
-    ///   - requestId: 请求 ID
     func sseManager(_ manager: SSEManager, didCloseWithRequestId requestId: String)
 }
 
 // MARK: - SSEManager
 /// SSE 管理器
-public class SSEManager {
+public class SSEManager: NSObject, URLSessionDataDelegate {
     
     // MARK: - Properties
-    /// 代理
     public weak var delegate: SSEManagerDelegate?
-    
-    /// 存储所有活动的连接
-    private var connections: [String: URLSessionDataTask] = [:]
-    
-    /// URLSession 配置
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        // 可根据需要自定义配置
-        return URLSession(configuration: config)
-    }()
-    
-    /// 串行队列，用于保护 connections 字典的线程安全
+    private var session: URLSession!
+    private var tasks: [String: URLSessionDataTask] = [:]
     private let connectionsQueue = DispatchQueue(label: "com.sseframework.connections.queue")
-    
+
     // MARK: - Initializer
-    public init() {}
+    public override init() {
+        super.init()
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = TimeInterval(10)
+        self.session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }
     
     // MARK: - Public Methods
-    
-    /// 开始 SSE 连接
-    /// - Parameters:
-    ///   - url: SSE 服务器地址
-    ///   - headers: 请求头
-    ///   - requestId: 请求 ID，用于标识和管理连接
-    public func startConnection(
-        to url: URL,
-        headers: [String: String] = [:],
-        requestId: String
-    ) {
-        // 检查是否已存在相同 requestId 的连接
+    public func startConnection(to url: URL, headers: [String: String] = [:], requestId: String) {
         connectionsQueue.sync {
-            if connections[requestId] != nil {
-                print("SSEManager: 已存在 requestId 为 \\(requestId) 的连接")
+            if tasks[requestId] != nil {
+                print("SSEManager: Connection with requestId \(requestId) already exists.")
                 return
             }
         }
@@ -83,118 +49,99 @@ public class SSEManager {
         request.httpMethod = "GET"
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-        request.setValue("keep-alive", forHTTPHeaderField: "Connection")
         
-        // 添加自定义请求头
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
         
-        let task = session.dataTask(with: request) { [weak self] data, response, error in
-            guard let self = self else { return }
-            
-            // 处理连接错误
-            if let error = error {
+        let task = session.dataTask(with: request)
+        task.taskDescription = requestId
+        
+        connectionsQueue.async(flags: .barrier) {
+            self.tasks[requestId] = task
+        }
+        
+        task.resume()
+    }
+    
+    public func cancelConnection(for requestId: String) {
+        connectionsQueue.sync {
+            if let task = tasks[requestId] {
+                task.cancel()
+                tasks.removeValue(forKey: requestId)
                 DispatchQueue.main.async {
-                    self.delegate?.sseManager(self, didFailWithError: error, requestId: requestId)
-                }
-                self.removeConnection(for: requestId)
-                return
-            }
-            
-            // 检查 HTTP 响应状态码
-            if let httpResponse = response as? HTTPURLResponse {
-                guard 200...299 ~= httpResponse.statusCode else {
-                    let statusError = NSError(
-                        domain: "SSEManagerErrorDomain",
-                        code: httpResponse.statusCode,
-                        userInfo: [NSLocalizedDescriptionKey: "HTTP \\(httpResponse.statusCode)"]
-                    )
-                    DispatchQueue.main.async {
-                        self.delegate?.sseManager(self, didFailWithError: statusError, requestId: requestId)
-                    }
-                    self.removeConnection(for: requestId)
-                    return
+                    self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
                 }
             }
+        }
+    }
+    
+    public func cancelAllConnections() {
+        connectionsQueue.sync {
+            let allRequestIds = Array(tasks.keys)
+            for requestId in allRequestIds {
+                if let task = tasks[requestId] {
+                    task.cancel()
+                }
+            }
+            tasks.removeAll()
             
-            // 通知连接已打开
+            DispatchQueue.main.async {
+                for requestId in allRequestIds {
+                    self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
+                }
+            }
+        }
+    }
+    
+    // MARK: - URLSessionDataDelegate
+    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let httpResponse = response as? HTTPURLResponse, 200...299 ~= httpResponse.statusCode else {
+            completionHandler(.cancel)
+            return
+        }
+        
+        if let requestId = dataTask.taskDescription {
             DispatchQueue.main.async {
                 self.delegate?.sseManager(self, didOpenWithRequestId: requestId)
             }
-            
-            // 处理接收到的数据
-            guard let data = data else {
-                self.removeConnection(for: requestId)
-                return
-            }
-            
-            // 简单的 SSE 数据解析
-            // SSE 格式: data: <content>\n\n
-            let dataString = String(data: data, encoding: .utf8) ?? ""
-            let lines = dataString.components(separatedBy: "\n")
-            
-            for line in lines {
-                if line.hasPrefix("data:") {
-                    let message = String(line.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        completionHandler(.allow)
+    }
+    
+    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard let requestId = dataTask.taskDescription else { return }
+        
+        let dataString = String(data: data, encoding: .utf8) ?? ""
+        let lines = dataString.components(separatedBy: "\n")
+        
+        for line in lines {
+            if line.hasPrefix("data:") {
+                let message = String(line.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !message.isEmpty {
                     DispatchQueue.main.async {
                         self.delegate?.sseManager(self, didReceiveMessage: message, requestId: requestId)
                     }
                 }
-                // 可以在这里处理其他 SSE 事件类型，如 event:, id:, retry: 等
             }
         }
+    }
+    
+    public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let requestId = task.taskDescription else { return }
         
-        // 存储连接
         connectionsQueue.async(flags: .barrier) {
-            self.connections[requestId] = task
+            self.tasks.removeValue(forKey: requestId)
         }
         
-        // 启动任务
-        task.resume()
-    }
-    
-    /// 取消指定的 SSE 连接
-    /// - Parameter requestId: 请求 ID
-    public func cancelConnection(for requestId: String) {
-        connectionsQueue.sync {
-            if let task = connections[requestId] {
-                task.cancel()
-                removeConnection(for: requestId)
-                DispatchQueue.main.async {
-                    self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
-                }
-            }
-        }
-    }
-    
-    /// 取消所有 SSE 连接
-    public func cancelAllConnections() {
-        connectionsQueue.sync {
-            let requestIds = Array(connections.keys)
-            for requestId in requestIds {
-                if let task = connections[requestId] {
-                    task.cancel()
-                }
-            }
-            connections.removeAll()
-            
-            // 通知所有连接已关闭
+        if let error = error {
             DispatchQueue.main.async {
-                for requestId in requestIds {
-                    self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
-                }
+                self.delegate?.sseManager(self, didFailWithError: error, requestId: requestId)
             }
-        }
-    }
-    
-    // MARK: - Private Methods
-    
-    /// 从连接字典中移除指定的连接
-    /// - Parameter requestId: 请求 ID
-    private func removeConnection(for requestId: String) {
-        connectionsQueue.async(flags: .barrier) {
-            self.connections[requestId] = nil
+        } else {
+            DispatchQueue.main.async {
+                self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
+            }
         }
     }
 }

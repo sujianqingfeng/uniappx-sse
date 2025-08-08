@@ -13,11 +13,14 @@ public protocol SSEManagerDelegate : AnyObject {
   func sseManager(_ manager: SSEFramework.SSEManager, didFailWithError error: any Swift.Error, requestId: Swift.String)
   func sseManager(_ manager: SSEFramework.SSEManager, didCloseWithRequestId requestId: Swift.String)
 }
-public class SSEManager {
+@objc @_inheritsConvenienceInitializers public class SSEManager : ObjectiveC.NSObject, Foundation.URLSessionDataDelegate {
   weak public var delegate: (any SSEFramework.SSEManagerDelegate)?
-  public init()
+  @objc override dynamic public init()
   public func startConnection(to url: Foundation.URL, headers: [Swift.String : Swift.String] = [:], requestId: Swift.String)
   public func cancelConnection(for requestId: Swift.String)
   public func cancelAllConnections()
+  @objc public func urlSession(_ session: Foundation.URLSession, dataTask: Foundation.URLSessionDataTask, didReceive response: Foundation.URLResponse, completionHandler: @escaping (Foundation.URLSession.ResponseDisposition) -> Swift.Void)
+  @objc public func urlSession(_ session: Foundation.URLSession, dataTask: Foundation.URLSessionDataTask, didReceive data: Foundation.Data)
+  @objc public func urlSession(_ session: Foundation.URLSession, task: Foundation.URLSessionTask, didCompleteWithError error: (any Swift.Error)?)
   @objc deinit
 }

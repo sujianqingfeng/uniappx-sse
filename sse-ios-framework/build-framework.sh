@@ -21,7 +21,7 @@ IOS_PLAYGROUND_DIR="../sse-ios-demo/SSEDemo"
 
 # 默认配置
 BUILD_CONFIG="Release"
-SIMULATOR_ARCHS="arm64"
+SIMULATOR_ARCHS="arm64 x86_64"
 DEVICE_ARCHS="arm64"
 CLEAN_BUILD=false
 SHOW_HELP=false
@@ -60,32 +60,32 @@ while [[ $# -gt 0 ]]; do
         -c|--config)
             BUILD_CONFIG="$2"
             shift 2
-            ;;
+            ;; 
         -s|--simulator)
             BUILD_TYPE="simulator"
             shift
-            ;;
+            ;; 
         -d|--device)
             BUILD_TYPE="device"
             shift
-            ;;
+            ;; 
         -u|--universal)
             BUILD_TYPE="universal"
             shift
-            ;;
+            ;; 
         --clean)
             CLEAN_BUILD=true
             shift
-            ;;
+            ;; 
         -h|--help)
             SHOW_HELP=true
             shift
-            ;;
+            ;; 
         *)
             echo -e "${RED}错误: 未知参数 $1${NC}"
             show_help
             exit 1
-            ;;
+            ;; 
     esac
 done
 
@@ -139,46 +139,42 @@ build_framework() {
     
     echo -e "${BLUE}构建 $platform 版本 ($archs)...${NC}"
     
-    # 如果指定了多个架构，需要分别构建然后合并
-    if [[ "$archs" == *" "* ]]; then
-        local temp_frameworks=()
-        local arch_array=($archs)
+    local temp_frameworks=()
+    local arch_array=($archs)
+    
+    for arch in "${arch_array[@]}"; do
+        echo -e "${YELLOW}构建架构: $arch${NC}"
         
-        for arch in "${arch_array[@]}"; do
-            echo -e "${YELLOW}构建架构: $arch${NC}"
-            
-            xcodebuild build \
-                -project "$PROJECT_NAME.xcodeproj" \
-                -scheme "$PROJECT_NAME" \
-                -configuration "$BUILD_CONFIG" \
-                -sdk "$sdk" \
-                -arch "$arch" \
-                -derivedDataPath "build/DerivedData" \
-                ONLY_ACTIVE_ARCH=NO \
-                SKIP_INSTALL=NO \
-                BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-                SUPPORTS_MACCATALYST=NO \
-                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD=NO
-            
-            # 查找构建的 framework
-            local framework_path="build/DerivedData/Build/Products/$BUILD_CONFIG-$sdk/$FRAMEWORK_NAME.framework"
-            local temp_path="$OUTPUT_DIR/$FRAMEWORK_NAME-$platform-$arch.framework"
-            
-            if [ -d "$framework_path" ]; then
-                cp -R "$framework_path" "$temp_path"
-                temp_frameworks+=("$temp_path")
-                echo -e "${GREEN}✓ 架构 $arch 构建完成${NC}"
-            else
-                echo -e "${RED}✗ 架构 $arch 构建失败${NC}"
-                exit 1
-            fi
-        done
+        xcodebuild build \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$PROJECT_NAME" \
+            -configuration "$BUILD_CONFIG" \
+            -sdk "$sdk" \
+            -arch "$arch" \
+            -derivedDataPath "build/DerivedData" \
+            ONLY_ACTIVE_ARCH=NO \
+            SKIP_INSTALL=NO \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+            SUPPORTS_MACCATALYST=NO \
+            SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD=NO
         
-        # 合并多个架构的 framework
-        local output_path="$OUTPUT_DIR/$FRAMEWORK_NAME-$platform.framework"
-        cp -R "${temp_frameworks[0]}" "$output_path"
+        local framework_path="build/DerivedData/Build/Products/$BUILD_CONFIG-$sdk/$FRAMEWORK_NAME.framework"
+        local temp_path="$OUTPUT_DIR/$FRAMEWORK_NAME-$platform-$arch.framework"
         
-        # 合并二进制文件
+        if [ -d "$framework_path" ]; then
+            cp -R "$framework_path" "$temp_path"
+            temp_frameworks+=("$temp_path")
+            echo -e "${GREEN}✓ 架构 $arch 构建完成${NC}"
+        else
+            echo -e "${RED}✗ 架构 $arch 构建失败${NC}"
+            exit 1
+        fi
+    done
+    
+    local output_path="$OUTPUT_DIR/$FRAMEWORK_NAME-$platform.framework"
+    cp -R "${temp_frameworks[0]}" "$output_path"
+    
+    if [ ${#temp_frameworks[@]} -gt 1 ]; then
         local binary_name="$FRAMEWORK_NAME"
         local universal_binary="$output_path/$binary_name"
         local lipo_args=()
@@ -189,40 +185,14 @@ build_framework() {
         
         lipo -create "${lipo_args[@]}" -output "$universal_binary"
         
-        # 清理临时文件
         for temp_framework in "${temp_frameworks[@]}"; do
             rm -rf "$temp_framework"
         done
-        
-        echo -e "${GREEN}✓ $platform 版本构建完成: $output_path${NC}"
-    else
-        # 单个架构构建
-        xcodebuild build \
-            -project "$PROJECT_NAME.xcodeproj" \
-            -scheme "$PROJECT_NAME" \
-            -configuration "$BUILD_CONFIG" \
-            -sdk "$sdk" \
-            -arch "$archs" \
-            -derivedDataPath "build/DerivedData" \
-            ONLY_ACTIVE_ARCH=NO \
-            SKIP_INSTALL=NO \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-            SUPPORTS_MACCATALYST=NO \
-            SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD=NO
-        
-        # 查找并复制 framework 到输出目录
-        local framework_path="build/DerivedData/Build/Products/$BUILD_CONFIG-$sdk/$FRAMEWORK_NAME.framework"
-        local output_path="$OUTPUT_DIR/$FRAMEWORK_NAME-$platform.framework"
-        
-        if [ -d "$framework_path" ]; then
-            cp -R "$framework_path" "$output_path"
-            echo -e "${GREEN}✓ $platform 版本构建完成: $output_path${NC}"
-        else
-            echo -e "${RED}✗ $platform 版本构建失败${NC}"
-            exit 1
-        fi
     fi
+    
+    echo -e "${GREEN}✓ $platform 版本构建完成: $output_path${NC}"
 }
+
 
 # 创建通用 framework
 create_universal_framework() {
@@ -237,44 +207,13 @@ create_universal_framework() {
         exit 1
     fi
     
-    # 检查架构是否相同
-    local simulator_archs=$(lipo -info "$simulator_framework/$FRAMEWORK_NAME" | sed 's/.*are: //' | tr -d ' ')
-    local device_archs=$(lipo -info "$device_framework/$FRAMEWORK_NAME" | sed 's/.*is architecture: //')
+    # 复制 simulator 版本作为基础
+    cp -R "$simulator_framework" "$universal_framework"
     
-    # 如果模拟器版本只包含设备版本的架构，则直接使用设备版本
-    if [[ "$simulator_archs" == "$device_archs" ]]; then
-        echo -e "${YELLOW}模拟器和设备版本架构相同 ($device_archs)，直接使用设备版本${NC}"
-        cp -R "$device_framework" "$universal_framework"
-        echo -e "${GREEN}✓ 通用 Framework 创建完成: $universal_framework${NC}"
-    else
-        # 复制设备版本作为基础
-        cp -R "$device_framework" "$universal_framework"
-        
-        # 合并二进制文件
-        local binary_name="$FRAMEWORK_NAME"
-        local simulator_binary="$simulator_framework/$binary_name"
-        local device_binary="$device_framework/$binary_name"
-        local universal_binary="$universal_framework/$binary_name"
-        
-        if [ -f "$simulator_binary" ] && [ -f "$device_binary" ]; then
-            # 检查是否有架构冲突
-            local simulator_arm64=$(lipo -info "$simulator_binary" | grep -q "arm64" && echo "yes" || echo "no")
-            local device_arm64=$(lipo -info "$device_binary" | grep -q "arm64" && echo "yes" || echo "no")
-            
-            if [[ "$simulator_arm64" == "yes" && "$device_arm64" == "yes" ]]; then
-                # 如果两个版本都包含 arm64，需要特殊处理
-                echo -e "${YELLOW}检测到架构冲突，使用模拟器版本（包含更多架构）${NC}"
-                cp "$simulator_binary" "$universal_binary"
-            else
-                # 正常合并
-                lipo -create "$simulator_binary" "$device_binary" -output "$universal_binary"
-            fi
-            echo -e "${GREEN}✓ 通用 Framework 创建完成: $universal_framework${NC}"
-        else
-            echo -e "${RED}✗ 创建通用 Framework 失败${NC}"
-            exit 1
-        fi
-    fi
+    # 合并二进制文件
+    lipo -create "$simulator_framework/$FRAMEWORK_NAME" "$device_framework/$FRAMEWORK_NAME" -output "$universal_framework/$FRAMEWORK_NAME"
+    
+    echo -e "${GREEN}✓ 通用 Framework 创建完成: $universal_framework${NC}"
 }
 
 # 根据构建类型执行构建
@@ -282,17 +221,17 @@ case "$BUILD_TYPE" in
     "simulator")
         build_framework "simulator" "$SIMULATOR_ARCHS" "iphonesimulator"
         FINAL_FRAMEWORK="$OUTPUT_DIR/$FRAMEWORK_NAME-simulator.framework"
-        ;;
+        ;; 
     "device")
         build_framework "device" "$DEVICE_ARCHS" "iphoneos"
         FINAL_FRAMEWORK="$OUTPUT_DIR/$FRAMEWORK_NAME-device.framework"
-        ;;
+        ;; 
     "universal")
         build_framework "simulator" "$SIMULATOR_ARCHS" "iphonesimulator"
         build_framework "device" "$DEVICE_ARCHS" "iphoneos"
         create_universal_framework
         FINAL_FRAMEWORK="$OUTPUT_DIR/$FRAMEWORK_NAME.framework"
-        ;;
+        ;; 
 esac
 
 # 复制到 UTS 插件目录

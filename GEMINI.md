@@ -6,10 +6,11 @@ This project is a starter template for creating a native plugin for Uni-App X. I
 
 The project is structured into several main parts:
 
-*   **`sse-uniapp-project`**: A Uni-App X project that serves as a testbed for the native plugin. It includes a simple UI to invoke the plugin's functionality.
-*   **`sse-android-plugin`**: An Android Studio project that contains the native Android implementation of the plugin.
-*   **`SSEFramework`**: An Xcode project that contains the native iOS implementation of the plugin.
-*   **`SSEApp`**: An iOS project that serves as a testbed for the iOS native plugin.
+*   **`sse-uniapp-demo`**: A Uni-App X project that serves as a testbed for the native plugin. It includes a simple UI to invoke the plugin's functionality.
+*   **`sse-android`**: An Android Studio project that contains the native Android implementation of the plugin.
+*   **`sse-ios-framework`**: An Xcode project that contains the native iOS implementation of the plugin.
+*   **`sse-ios-demo`**: An iOS project that serves as a testbed for the iOS native plugin.
+*   **`sse-server`**: A Node.js server that provides Server-Sent Events (SSE) for testing.
 
 ## Building and Running
 
@@ -17,7 +18,7 @@ The project is structured into several main parts:
 
 To run the Uni-App X project, you will need to use HBuilderX.
 
-1.  Open HBuilderX and import the `sse-uniapp-project` directory.
+1.  Open HBuilderX and import the `sse-uniapp-demo` directory.
 2.  Connect a device or start an emulator.
 3.  Run the project on the desired platform (iOS or Android).
 
@@ -26,7 +27,7 @@ To run the Uni-App X project, you will need to use HBuilderX.
 To build the Android plugin, you can use Gradle.
 
 ```bash
-cd sse-android-plugin
+cd sse-android
 ./gradlew build
 ```
 
@@ -35,7 +36,7 @@ cd sse-android-plugin
 To build the iOS framework, you can use the provided script:
 
 ```bash
-cd SSEFramework
+cd sse-ios-framework
 ./build-framework.sh
 ```
 
@@ -45,6 +46,18 @@ Alternatively, you can build it manually using Xcode:
 2.  Select the `SSEFramework` scheme.
 3.  Build the project.
 
+### SSE Server
+
+The SSE server is a Node.js application. To run it, use the following commands. The package manager is `pnpm`.
+
+**Note**: The server is not started automatically. You need to start it manually.
+
+```bash
+cd sse-server
+pnpm install
+pnpm start
+```
+
 ## Development Conventions
 
 ### Plugin Development
@@ -52,23 +65,23 @@ Alternatively, you can build it manually using Xcode:
 The core logic for the plugin is located in the following files:
 
 *   **Android**: 
-    * Plugin implementation: `sse-android-plugin/sse-sse-lib/src/main/java/com/example/android_lib/SayHiModule.kt`
-    * Plugin interface: `sse-uniapp-project/uni_modules//utssdk/app-android/index.uts`
+    * Plugin implementation: `sse-android/sse-lib/src/main/java/com/example/android_lib/SayHiModule.kt`
+    * Plugin interface: `sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/index.uts`
 *   **iOS**: 
-    * Plugin implementation: `SSEFramework/SSEFramework/ios_framework.swift`
-    * Plugin interface: `sse-uniapp-project/uni_modules//utssdk/app-ios/index.uts`
+    * Plugin implementation: `sse-ios-framework/SSEFramework/SSEFramework.swift`
+    * Plugin interface: `sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/index.uts`
 
 When making changes to the native code, you will need to:
 1. Rebuild the respective projects (Android or iOS)
-2. Update the plugin files in `sse-uniapp-project/uni_modules//utssdk/` if needed
+2. Update the plugin files in `sse-uniapp-demo/uni_modules/sse-plugin/utssdk/` if needed
 3. Re-run the Uni-App X project to see the changes
 
 ### Uni-App X Development
 
-The Uni-App X code is located in the `sse-uniapp-project` directory. The main files to look at are:
+The Uni-App X code is located in the `sse-uniapp-demo` directory. The main files to look at are:
 
 *   `main.uts`: The entry point of the application.
 *   `pages/index/index.uvue`: The main page of the application, which contains the UI for interacting with the plugin.
-*   `uni_modules//`: The plugin directory, which contains the interface definitions for both Android and iOS platforms.
+*   `uni_modules/sse-plugin`: The plugin directory, which contains the interface definitions for both Android and iOS platforms.
 
 The plugin is imported and used in the `pages/index/index.uvue` file.
