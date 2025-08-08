@@ -1,0 +1,195 @@
+<template>
+	<view class="container">
+		<!-- 头部区域 -->
+		<view class="header">
+			<text class="app-title">UniApp X</text>
+			<text class="app-subtitle">Native Plugin Demo</text>
+		</view>
+		
+		<!-- 主要内容区域 -->
+		<view class="content">
+			<view class="card">
+				<text class="card-title">Say Hi Plugin</text>
+				<text class="card-description">测试原生插件功能，点击下方按钮体验同步和异步调用</text>
+				
+				<view class="button-group">
+					<view class="btn btn-secondary" @click="onSayHi">
+						<text class="btn-text">异步调用</text>
+					</view>
+				</view>
+			</view>
+			
+			<!-- 结果显示区域 -->
+			<view class="result-card" v-if="resultMessage">
+				<text class="result-title">调用结果</text>
+				<text class="result-content">{{ resultMessage }}</text>
+			</view>
+		</view>
+		
+		<!-- 底部信息 -->
+		<view class="footer">
+			<text class="footer-text">基于 UniApp X 原生插件开发</text>
+		</view>
+	</view>
+</template>
+
+<script>
+	import { sayHiApi } from "@/uni_modules/say-hi";
+
+	export default {
+		data() {
+			return {
+				resultMessage: ''
+			}
+		},
+		onLoad() {
+	
+		},
+		methods: {
+			onSayHi(){
+				this.resultMessage = '正在异步调用...'
+				sayHiApi({
+					say: 'hi',
+					success: (res) => {
+						this.resultMessage = `异步调用成功: ${JSON.stringify(res)}`
+						console.log('async hi', res)
+					},
+					fail: (error) => {
+						this.resultMessage = `异步调用失败: ${JSON.stringify(error)}`
+						console.error('async hi error', error)
+					}
+				})
+			}
+		}
+	}
+</script>
+
+<style>
+	.container {
+		min-height: 100vh;
+		background: #f5f5f5;
+		padding: 40rpx 0;
+	}
+	
+	/* 头部区域 */
+	.header {
+		padding: 80rpx 40rpx 60rpx;
+		text-align: center;
+	}
+	
+	.app-title {
+		font-size: 48rpx;
+		font-weight: bold;
+		color: #333333;
+		margin-bottom: 10rpx;
+	}
+	
+	.app-subtitle {
+		font-size: 28rpx;
+		color: #666666;
+	}
+	
+	/* 内容区域 */
+	.content {
+		padding: 0 40rpx;
+	}
+	
+	.card {
+		background: #ffffff;
+		border-radius: 16rpx;
+		padding: 50rpx 40rpx;
+		margin-bottom: 30rpx;
+		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+	}
+	
+	.card-title {
+		font-size: 36rpx;
+		font-weight: bold;
+		color: #333333;
+		text-align: center;
+		margin-bottom: 20rpx;
+	}
+	
+	.card-description {
+		font-size: 28rpx;
+		color: #666666;
+		text-align: center;
+		line-height: 1.6;
+		margin-bottom: 50rpx;
+	}
+	
+	/* 按钮组 */
+	.button-group {
+		display: flex;
+		flex-direction: column;
+	}
+	
+	.btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 30rpx;
+		border-radius: 12rpx;
+		transition: all 0.2s ease;
+		margin-bottom: 20rpx;
+	}
+	
+	.btn:last-child {
+		margin-bottom: 0;
+	}
+	
+	.btn:active {
+		transform: scale(0.98);
+	}
+	
+	.btn-primary {
+		background: #007aff;
+		box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.3);
+	}
+	
+	.btn-secondary {
+		background: #34c759;
+		box-shadow: 0 4rpx 12rpx rgba(52, 199, 89, 0.3);
+	}
+	
+	.btn-text {
+		font-size: 32rpx;
+		font-weight: 600;
+		color: #ffffff;
+	}
+	
+	/* 结果显示 */
+	.result-card {
+		background: #ffffff;
+		border-radius: 16rpx;
+		padding: 30rpx;
+		margin-bottom: 30rpx;
+		border-left: 6rpx solid #007aff;
+		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+	}
+	
+	.result-title {
+		font-size: 28rpx;
+		font-weight: 600;
+		color: #333333;
+		margin-bottom: 15rpx;
+	}
+	
+	.result-content {
+		font-size: 26rpx;
+		color: #666666;
+		line-height: 1.5;
+		word-break: break-all;
+	}
+	
+	/* 底部 */
+	.footer {
+		padding: 40rpx;
+		text-align: center;
+	}
+	
+	.footer-text {
+		font-size: 24rpx;
+		color: #999999;
+	}
+</style>

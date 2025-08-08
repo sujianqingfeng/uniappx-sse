@@ -1,0 +1,8 @@
+unpackage
+.hbuilderx
+ios-framework/build
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/shelf/
+.idea/usage.statistics.xml
+.idea/httpRequests/

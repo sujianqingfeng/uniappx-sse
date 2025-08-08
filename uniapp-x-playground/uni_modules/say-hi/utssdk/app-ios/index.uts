@@ -1,0 +1,33 @@
+/**
+ * 引用 iOS 系统库，示例如下：
+ * import { UIDevice } from "UIKit";
+ * [可选实现，按需引入]
+ */
+
+import { SayHiApiOptions, SayHiApiResult, SayHiApi, SayHiApiSync } from '../interface.uts';
+import { SayHiApiFailImpl } from '../unierror';
+
+/**
+ * 引入三方库
+ * [可选实现，按需引入]
+ *
+ * 在 iOS 平台引入三方库有以下两种方式：
+ * 1、通过引入三方库framework 或者.a 等方式，需要将 .framework 放到 ./Frameworks 目录下，将.a 放到 ./Libs 目录下。更多信息[详见](https://uniapp.dcloud.net.cn/plugin/uts-plugin.html#ios-平台原生配置)
+ * 2、通过 cocoaPods 方式引入，将要引入的 pod 信息配置到 config.json 文件下的 dependencies-pods 字段下。详细配置方式[详见](https://uniapp.dcloud.net.cn/plugin/uts-ios-cocoapods.html)
+ *
+ * 在通过上述任意方式依赖三方库后，使用时需要在文件中 import:
+ * 示例：import { LottieLoopMode	} from 'Lottie'
+ */
+
+/**
+ * UTSiOS 为平台内置对象，不需要 import 可直接调用其API，[详见](https://uniapp.dcloud.net.cn/uts/utsios.html)
+ */
+
+// 引入 ios_framework 中的 SayHiFramework 类
+import { SayHiFramework } from 'ios_framework';
+
+export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
+  const sayHi = new SayHiFramework()
+  const result = sayHi.say(options.say)
+  options.success?.({result})
+}
