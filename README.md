@@ -12,7 +12,7 @@
 ### UniApp X 集成演示
 | Android 平台调用 | iOS 平台调用 |
 |-----------------|--------------|
-| ![UniApp Call Android](screenshots/uniapp-call-android-lib.gif) | ![UniApp Call iOS](screenshots/uniapp-call-ios-framework.gif) |
+| ![UniApp Call Android](screenshots/uniapp-call-sse-android-lib.gif) | ![UniApp Call iOS](screenshots/uniapp-call-SSEFramework.gif) |
 
 **演示说明：**
 - **原生演示**：展示在 Android Studio 和 Xcode 中独立运行原生库的功能
@@ -30,19 +30,19 @@
 
 ```
 starter-uniapp-native-plugin/
-├── android-playground/          # Android 原生库项目
-│   ├── android-lib/            # Android 库模块
+├── sse-android-plugin/          # Android 原生库项目
+│   ├── sse-android-lib/            # Android 库模块
 │   ├── app/                    # Android 测试应用
 │   ├── build-aar.sh            # Android AAR 构建脚本 (Linux/macOS)
 │   └── build-aar.bat           # Android AAR 构建脚本 (Windows)
-├── ios-framework/              # iOS 原生框架项目
-│   ├── ios-framework/          # iOS Framework 源码
+├── SSEFramework/              # iOS 原生框架项目
+│   ├── SSEFramework/          # iOS Framework 源码
 │   ├── build-framework.sh      # iOS Framework 构建脚本
 │   └── BUILD.md                # iOS Framework 构建说明
-├── ios-playground/             # iOS 测试应用
-├── uniapp-x-playground/        # UniApp X 应用
+├── SSEApp/             # iOS 测试应用
+├── sse-uniapp-project/        # UniApp X 应用
 │   └── uni_modules/
-│       └── say-hi/             # UTS 插件模块
+│       └── sse-plugin/             # UTS 插件模块
 └── screenshots/                # 项目截图和演示
 ```
 
@@ -66,7 +66,7 @@ starter-uniapp-native-plugin/
 **Linux/macOS:**
 ```bash
 # 进入 Android 项目目录
-cd android-playground
+cd sse-android-plugin
 
 # 构建 debug 版本 (默认)
 ./build-aar.sh
@@ -87,7 +87,7 @@ cd android-playground
 **Windows:**
 ```cmd
 # 进入 Android 项目目录
-cd android-playground
+cd sse-android-plugin
 
 # 构建 debug 版本 (默认)
 build-aar.bat
@@ -108,7 +108,7 @@ build-aar.bat -e release -c
 
 ```bash
 # 进入 iOS Framework 项目目录
-cd ios-framework
+cd SSEFramework
 
 # 构建 Release 通用版本 (默认)
 ./build-framework.sh
@@ -140,13 +140,13 @@ cd ios-framework
 
 ```bash
 # 进入 Android 项目目录
-cd android-playground
+cd sse-android-plugin
 
 # 构建 debug 版本
-./gradlew :android-lib:assembleDebug
+./gradlew :sse-android-lib:assembleDebug
 
 # 构建 release 版本
-./gradlew :android-lib:assembleRelease
+./gradlew :sse-android-lib:assembleRelease
 
 # 清理构建缓存
 ./gradlew clean
@@ -156,40 +156,40 @@ cd android-playground
 
 ```bash
 # 进入 iOS Framework 项目目录
-cd ios-framework
+cd SSEFramework
 
 # 构建 Release 版本
-xcodebuild build -project ios-framework.xcodeproj -scheme ios-framework -configuration Release -sdk iphoneos
+xcodebuild build -project SSEFramework.xcodeproj -scheme SSEFramework -configuration Release -sdk iphoneos
 
 # 构建 Debug 版本
-xcodebuild build -project ios-framework.xcodeproj -scheme ios-framework -configuration Debug -sdk iphoneos
+xcodebuild build -project SSEFramework.xcodeproj -scheme SSEFramework -configuration Debug -sdk iphoneos
 
 # 构建模拟器版本
-xcodebuild build -project ios-framework.xcodeproj -scheme ios-framework -configuration Release -sdk iphonesimulator
+xcodebuild build -project SSEFramework.xcodeproj -scheme SSEFramework -configuration Release -sdk iphonesimulator
 
 # 清理构建缓存
-xcodebuild clean -project ios-framework.xcodeproj -scheme ios-framework
+xcodebuild clean -project SSEFramework.xcodeproj -scheme SSEFramework
 ```
 
 ### 3. 运行示例
 
 #### Android 平台
 ```bash
-# 1. 打开 Android Studio，导入 android-playground 项目
-# 2. 构建并运行 android-lib 模块
+# 1. 打开 Android Studio，导入 sse-android-plugin 项目
+# 2. 构建并运行 sse-android-lib 模块
 # 3. 运行 app 模块测试原生功能
 ```
 
 #### iOS 平台
 ```bash
-# 1. 打开 Xcode，导入 ios-framework 项目
+# 1. 打开 Xcode，导入 SSEFramework 项目
 # 2. 构建框架
-# 3. 运行 ios-playground 测试原生功能
+# 3. 运行 SSEApp 测试原生功能
 ```
 
 #### UniApp X 应用
 ```bash
-# 1. 使用 HBuilderX 打开 uniapp-x-playground 项目
+# 1. 使用 HBuilderX 打开 sse-uniapp-project 项目
 # 2. 运行到 Android 或 iOS 设备/模拟器
 # 3. 点击"异步调用"按钮测试插件功能
 ```
@@ -219,16 +219,16 @@ xcodebuild clean -project ios-framework.xcodeproj -scheme ios-framework
 **Android AAR 包输出：**
 构建完成后，AAR 文件将生成在：
 ```
-android-playground/android-lib/build/outputs/aar/
-├── android-lib-debug.aar      # Debug 版本
-├── android-lib-release.aar    # Release 版本
-└── android-lib-release.aar    # Release-minified 版本 (混淆后)
+sse-android-plugin/sse-android-lib/build/outputs/aar/
+├── sse-android-lib-debug.aar      # Debug 版本
+├── sse-android-lib-release.aar    # Release 版本
+└── sse-android-lib-release.aar    # Release-minified 版本 (混淆后)
 ```
 
 **iOS Framework 输出：**
 构建完成后，Framework 文件将生成在：
 ```
-ios-framework/build/Release/
+SSEFramework/build/Release/
 ├── ios_framework.framework           # 通用版本 (模拟器+设备)
 ├── ios_framework-simulator.framework # 模拟器版本
 └── ios_framework-device.framework    # 设备版本
@@ -239,20 +239,20 @@ ios-framework/build/Release/
 **Android AAR 包：**
 构建脚本会自动将生成的 AAR 文件复制到 UniApp 项目中：
 ```
-uniapp-x-playground/uni_modules/say-hi/utssdk/app-android/libs/
+sse-uniapp-project/uni_modules//utssdk/app-android/libs/
 ```
 
 **iOS Framework：**
 构建脚本会自动将生成的 Framework 文件复制到 UniApp 项目中：
 ```
-uniapp-x-playground/uni_modules/say-hi/utssdk/app-ios/Frameworks/
+sse-uniapp-project/uni_modules//utssdk/app-ios/Frameworks/
 ```
 
 ### 2. 原生库开发
 
 #### Android (Kotlin)
 ```kotlin
-// android-playground/android-lib/src/main/java/com/hens/android_lib/SayHiLib.kt
+// sse-android-plugin/sse-android-lib/src/main/java/com/hens/android_lib/SayHiLib.kt
 public class SayHiLib {
     public fun say(str: String): String {
         val currentTime = Date()
@@ -266,7 +266,7 @@ public class SayHiLib {
 
 #### iOS (Swift)
 ```swift
-// ios-framework/ios-framework/ios_framework.swift
+// SSEFramework/SSEFramework/ios_framework.swift
 public class SayHiFramework {
     public func say(_ str: String) -> String {
         let currentTime = Date()
@@ -283,7 +283,7 @@ public class SayHiFramework {
 
 #### 接口定义
 ```typescript
-// uniapp-x-playground/uni_modules/say-hi/utssdk/interface.uts
+// sse-uniapp-project/uni_modules//utssdk/interface.uts
 export type SayHiApiOptions = {
   say : string
   success ?: (res : SayHiApiResult) => void
@@ -298,8 +298,8 @@ export type SayHiApiResult = {
 
 #### Android 实现
 ```typescript
-// uniapp-x-playground/uni_modules/say-hi/utssdk/app-android/index.uts
-import SayHiLib from 'com.hens.android_lib.SayHiLib';
+// sse-uniapp-project/uni_modules//utssdk/app-android/index.uts
+import SayHiLib from 'com.hens.sse.library.SayHiLib';
 
 export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
   const sayHiLib = new SayHiLib();
@@ -315,7 +315,7 @@ export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
 
 #### iOS 实现
 ```typescript
-// uniapp-x-playground/uni_modules/say-hi/utssdk/app-ios/index.uts
+// sse-uniapp-project/uni_modules//utssdk/app-ios/index.uts
 import { SayHiFramework } from 'ios_framework';
 
 export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
@@ -328,7 +328,7 @@ export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
 ### 3. UniApp X 应用集成
 
 ```vue
-<!-- uniapp-x-playground/pages/index/index.uvue -->
+<!-- sse-uniapp-project/pages/index/index.uvue -->
 <template>
   <view class="container">
     <view class="button-group">
@@ -344,7 +344,7 @@ export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
 </template>
 
 <script>
-import { sayHiApi } from "@/uni_modules/say-hi";
+import { sayHiApi } from "@/uni_modules/";
 
 export default {
   data() {
@@ -386,6 +386,28 @@ export default {
 2. **技术栈现代化**：使用 Kotlin 和 Swift，学习价值更高
 3. **开发效率提升**：原生功能开发完成后，UTS 集成相对简单
 4. **跨平台一致性**：通过 UTS 统一接口，保证双平台行为一致
+
+## 🔄 项目重命名
+
+这是一个模板项目，为了避免命名冲突，你可以使用提供的脚本来重命名项目中的各种标识符：
+
+```bash
+# 1. 复制配置文件并编辑
+cp scripts/rename.config.env scripts/rename.config.myproject.env
+
+# 2. 编辑配置文件，设置你想要的名称
+nano scripts/rename.config.myproject.env
+
+# 3. 运行重命名脚本
+./scripts/rename-template.sh scripts/rename.config.myproject.env
+```
+
+配置文件中可以修改：
+- 项目目录名称
+- Android 包名
+- iOS Bundle ID
+- UniApp 插件名称
+- 等等
 
 ## 📚 相关文档
 

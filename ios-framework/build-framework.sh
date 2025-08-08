@@ -17,6 +17,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="ios-framework"
 FRAMEWORK_NAME="ios_framework"
 UTS_FRAMEWORK_DIR="../uniapp-x-playground/uni_modules/say-hi/utssdk/app-ios/Frameworks"
+IOS_PLAYGROUND_DIR="../ios-playground/ios-playground"
 
 # 默认配置
 BUILD_CONFIG="Release"
@@ -38,6 +39,11 @@ show_help() {
     echo "  -u, --universal        构建通用版本 (模拟器+设备)"
     echo "  --clean                清理构建缓存"
     echo "  -h, --help             显示此帮助信息"
+    echo ""
+    echo "说明:"
+    echo "  构建完成后，脚本会自动将 Framework 复制到以下两个位置："
+    echo "  1. UTS 插件目录: $UTS_FRAMEWORK_DIR"
+    echo "  2. iOS Playground: $IOS_PLAYGROUND_DIR"
     echo ""
     echo "示例:"
     echo "  $0                      # 构建 Release 通用版本"
@@ -310,6 +316,22 @@ if [ -d "$UTS_FRAMEWORK_DIR" ]; then
 else
     echo -e "${YELLOW}警告: UTS Framework 目录不存在: $UTS_FRAMEWORK_DIR${NC}"
     echo -e "${YELLOW}请手动复制 $FINAL_FRAMEWORK 到 UTS 插件目录${NC}"
+fi
+
+# 复制到 iOS Playground
+if [ -d "$IOS_PLAYGROUND_DIR" ]; then
+    echo -e "${BLUE}复制 Framework 到 iOS Playground...${NC}"
+    
+    # 删除原有的 framework
+    if [ -d "$IOS_PLAYGROUND_DIR/$FRAMEWORK_NAME.framework" ]; then
+        rm -rf "$IOS_PLAYGROUND_DIR/$FRAMEWORK_NAME.framework"
+    fi
+    
+    # 复制新的 framework
+    cp -R "$FINAL_FRAMEWORK" "$IOS_PLAYGROUND_DIR/"
+    echo -e "${GREEN}✓ Framework 已复制到: $IOS_PLAYGROUND_DIR/$FRAMEWORK_NAME.framework${NC}"
+else
+    echo -e "${YELLOW}警告: iOS Playground 目录不存在: $IOS_PLAYGROUND_DIR${NC}"
 fi
 
 echo -e "${GREEN}🎉 iOS Framework 构建完成!${NC}"

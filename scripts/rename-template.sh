@@ -14,6 +14,7 @@ ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 CONFIG_FILE="${1:-$SCRIPT_DIR/rename.config.env}"
 if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "Config file not found: $CONFIG_FILE" >&2
+  echo "Please copy $SCRIPT_DIR/rename.config.default.env to $CONFIG_FILE and edit it." >&2
   exit 1
 fi
 
@@ -45,23 +46,25 @@ require_cmd xargs
 
 # Build file list excluding binary/derived dirs
 build_file_list() {
-  # Exclude heavy/binary directories
+  # Exclude heavy/binary directories and this script/config to avoid self-editing
   # - iOS prebuilt frameworks inside uni_modules
-  # - Any *.framework bundles inside iOS playground
+  # - Any *.framework bundles inside iOS projects
   # - Gradle/wrapper/cache/build outputs
   # - Node modules if present
   # - .git and IDE folders
   find "$ROOT_DIR" \
     \( \
+      -path "$SCRIPT_DIR/rename.config.env" -o \
+      -path "$SCRIPT_DIR/rename-template.sh" -o \
       -path "*/.git/*" -o \
       -path "*/.gradle/*" -o \
       -path "*/build/*" -o \
       -path "*/node_modules/*" -o \
       -path "*/.idea/*" -o \
       -path "*/.vscode/*" -o \
-      -path "*/uniapp-x-playground/uni_modules/*/utssdk/app-ios/Frameworks/*" -o \
-      -path "*/ios-playground/*/*.framework/*" -o \
-      -path "*/ios-framework/*/*.framework/*" -o \
+      -path "*/uniapp-*/uni_modules/*/utssdk/app-ios/Frameworks/*" -o \
+      -path "*/ios-*/**/*.framework/*" -o \
+      -path "*/ios-*/**/*.framework" -o \
       -name "*.jar" -o \
       -name "*.aar" -o \
       -name "*.png" -o \
@@ -78,7 +81,7 @@ build_file_list() {
 
 replace_literal_in_file() {
   local file="$1" from="$2" to="$3"
-  perl -0777 -i -pe "s/\Q${from}\E/${to}/g" "$file"
+  FROM="$from" TO="$to" perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM}; $to=$ENV{TO}; } s/\Q$from\E/$to/g' "$file"
 }
 
 do_replacements() {
@@ -108,6 +111,9 @@ do_replacements() {
   # iOS app project and bundle id
   add_pair_if_set "${IOS_APP_PROJECT_NAME_FROM}" "${IOS_APP_PROJECT_NAME_TO}"
   add_pair_if_set "${IOS_APP_BUNDLE_ID_FROM}" "${IOS_APP_BUNDLE_ID_TO}"
+  
+  # iOS directory paths in build scripts
+  add_pair_if_set "../${IOS_APP_DIR_FROM}" "../${IOS_APP_DIR_TO}"
 
   # UniApp dir and UTS module info
   add_pair_if_set "${UNIAPP_DIR_FROM}" "${UNIAPP_DIR_TO}"
@@ -122,18 +128,12 @@ do_replacements() {
   fi
 
   echo "Applying content replacements..."
-  # Build file list once
-  mapfile -d '' FILES < <(build_file_list)
-
-  local total_files=${#FILES[@]}
-  echo "Scanning $total_files files..."
-
-  # Apply each pair across all files
+  # Apply each pair across all files (stream to avoid bash 3.2 mapfile)
   local i from to
   for ((i=0; i<${#pairs[@]}; i+=2)); do
     from="${pairs[i]}"; to="${pairs[i+1]}"
     echo "- Replace: '$from' -> '$to'"
-    for file in "${FILES[@]}"; do
+    build_file_list | while IFS= read -r -d $'\0' file; do
       replace_literal_in_file "$file" "$from" "$to"
     done
   done
@@ -262,12 +262,14 @@ main() {
       rename_dir_if_needed "$LIB_FROM_DIR" "$LIB_TO_DIR"
       # Targeted updates for library module name in settings and gradle project refs
       if [[ -f "$ANDROID_ROOT_CUR/settings.gradle.kts" ]]; then
-        perl -0777 -i -pe "s/include\((['\"])\:${ANDROID_LIBRARY_MODULE_DIR_FROM}\1\)/include(\$1:${ANDROID_LIBRARY_MODULE_DIR_TO}\$1)/g" \
+        FROM_MOD="${ANDROID_LIBRARY_MODULE_DIR_FROM}" TO_MOD="${ANDROID_LIBRARY_MODULE_DIR_TO}" \
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/include\((['"'"'"]):$from\1\)/include\(\$1:$to\$1\)/g' \
           "$ANDROID_ROOT_CUR/settings.gradle.kts"
       fi
-      mapfile -d '' GRADLE_FILES_LIB < <(find "$ANDROID_ROOT_CUR" -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -print0)
-      for gf in "${GRADLE_FILES_LIB[@]:-}"; do
-        perl -0777 -i -pe "s/project\((['\"])\:${ANDROID_LIBRARY_MODULE_DIR_FROM}\1\)/project(\$1:${ANDROID_LIBRARY_MODULE_DIR_TO}\$1)/g" "$gf"
+      find "$ANDROID_ROOT_CUR" -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -print0 | \
+      while IFS= read -r -d $'\0' gf; do
+        FROM_MOD="${ANDROID_LIBRARY_MODULE_DIR_FROM}" TO_MOD="${ANDROID_LIBRARY_MODULE_DIR_TO}" \
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/project\((['"'"'"]):$from\1\)/project\(\$1:$to\$1\)/g' "$gf"
       done
     fi
 
@@ -277,13 +279,15 @@ main() {
       rename_dir_if_needed "$APP_FROM_DIR" "$APP_TO_DIR"
       # Targeted updates for app module name in settings and gradle project refs
       if [[ -f "$ANDROID_ROOT_CUR/settings.gradle.kts" ]]; then
-        perl -0777 -i -pe "s/include\((['\"])\:${ANDROID_APP_MODULE_DIR_FROM}\1\)/include(\$1:${ANDROID_APP_MODULE_DIR_TO}\$1)/g" \
+        FROM_MOD="${ANDROID_APP_MODULE_DIR_FROM}" TO_MOD="${ANDROID_APP_MODULE_DIR_TO}" \
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/include\((['"'"'"]):$from\1\)/include\(\$1:$to\$1\)/g' \
           "$ANDROID_ROOT_CUR/settings.gradle.kts"
       fi
       # Update any project(":app") references under android root
-      mapfile -d '' GRADLE_FILES < <(find "$ANDROID_ROOT_CUR" -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -print0)
-      for gf in "${GRADLE_FILES[@]:-}"; do
-        perl -0777 -i -pe "s/project\((['\"])\:${ANDROID_APP_MODULE_DIR_FROM}\1\)/project(\$1:${ANDROID_APP_MODULE_DIR_TO}\$1)/g" "$gf"
+      find "$ANDROID_ROOT_CUR" -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -print0 | \
+      while IFS= read -r -d $'\0' gf; do
+        FROM_MOD="${ANDROID_APP_MODULE_DIR_FROM}" TO_MOD="${ANDROID_APP_MODULE_DIR_TO}" \
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/project\((['"'"'"]):$from\1\)/project\(\$1:$to\$1\)/g' "$gf"
       done
     fi
 
@@ -311,5 +315,3 @@ main() {
 }
 
 main "$@"
-
-

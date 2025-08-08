@@ -1,6 +1,6 @@
 unpackage
 .hbuilderx
-ios-framework/build
+SSEFramework/build
 .idea/workspace.xml
 .idea/tasks.xml
 .idea/shelf/
