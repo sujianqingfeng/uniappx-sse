@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Server Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .connection-status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .event {
+            padding: 10px;
+            border-left: 4px solid #007bff;
+            background-color: #f8f9fa;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        #events {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SSE Server Demo</h1>
+        
+        <div id="status" class="connection-status disconnected">
+            Disconnected
+        </div>
+        
+        <div style="text-align: center;">
+            <button id="connectBtn">Connect to SSE</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+            <button id="clearBtn">Clear Events</button>
+        </div>
+        
+        <div id="events"></div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const eventsDiv = document.getElementById('events');
+        
+        let eventSource = null;
+        
+        // Update connection status display
+        function updateStatus(connected) {
+            if (connected) {
+                statusDiv.textContent = 'Connected';
+                statusDiv.className = 'connection-status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusDiv.textContent = 'Disconnected';
+                statusDiv.className = 'connection-status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+        
+        // Add event to the display
+        function addEvent(eventData) {
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            eventDiv.innerHTML = `
+                <strong>Event:</strong> ${eventData.type}<br>
+                <strong>Data:</strong> ${eventData.data}<br>
+                <strong>Time:</strong> ${new Date().toLocaleTimeString()}
+            `;
+            eventsDiv.prepend(eventDiv);
+        }
+        
+        // Connect to SSE
+        function connect() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource('/sse');
+            
+            eventSource.onopen = function(event) {
+                updateStatus(true);
+                addEvent({ type: 'open', data: 'Connection established' });
+            };
+            
+            eventSource.onmessage = function(event) {
+                addEvent({ type: 'message', data: event.data });
+            };
+            
+            eventSource.onerror = function(event) {
+                updateStatus(false);
+                addEvent({ type: 'error', data: 'Connection error' });
+            };
+        }
+        
+        // Disconnect from SSE
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                updateStatus(false);
+                addEvent({ type: 'closed', data: 'Connection closed' });
+            }
+        }
+        
+        // Clear events
+        function clearEvents() {
+            eventsDiv.innerHTML = '';
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        clearBtn.addEventListener('click', clearEvents);
+    </script>
+</body>
+</html>

@@ -7,3 +7,5 @@ SSEFramework/build
 .idea/usage.statistics.xml
 .idea/httpRequests/
 build
+.DS_Store
+node_modules

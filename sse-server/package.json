@@ -1,0 +1,23 @@
+{
+  "name": "sse-server",
+  "version": "1.0.0",
+  "description": "SSE (Server-Sent Events) server for testing the iOS/Android framework",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "sse",
+    "server-sent-events",
+    "streaming",
+    "real-time"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.1.0",
+    "cors": "^2.8.5"
+  },
+  "packageManager": "pnpm@10.13.1"
+}

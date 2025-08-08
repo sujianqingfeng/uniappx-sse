@@ -21,7 +21,7 @@ IOS_PLAYGROUND_DIR="../sse-ios-demo/SSEDemo"
 
 # 默认配置
 BUILD_CONFIG="Release"
-SIMULATOR_ARCHS="x86_64 arm64"
+SIMULATOR_ARCHS="arm64"
 DEVICE_ARCHS="arm64"
 CLEAN_BUILD=false
 SHOW_HELP=false
