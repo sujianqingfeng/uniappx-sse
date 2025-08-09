@@ -28,16 +28,22 @@ let sseManager : SSEManager | null = null;
 let currentRequestId : string | null = null;
 let currentListeners : SSEEventListenerOptions | null = null;
 
+// 持有委托的全局强引用，避免被释放
+let sseDelegateRef : SSEDelegateHandler | null = null;
+
 // 初始化 SSE 管理器
 function getSSEManager() : SSEManager {
 	if (sseManager == null) {
 		console.log("[SSE DEBUG] Creating new SSEManager instance");
 		const manager = new SSEManager();
 		console.log("[SSE DEBUG] SSEManager created successfully");
-		const delegate = new SSEDelegateHandler();
-		manager.delegate = delegate;
+		if (sseDelegateRef == null) {
+			console.log("[SSE DEBUG] Creating persistent SSEDelegateHandler");
+			sseDelegateRef = new SSEDelegateHandler();
+		}
+		manager.delegate = sseDelegateRef as SSEDelegateHandler;
 		console.log("[SSE DEBUG] SSEDelegateHandler set successfully");
-		console.log("[SSE DEBUG] Delegate object type:", typeof delegate);
+		console.log("[SSE DEBUG] Delegate object type:", typeof sseDelegateRef);
 		console.log("[SSE DEBUG] Manager delegate after set:", manager.delegate != null ? "not null" : "null");
 		sseManager = manager;
 		console.log("[SSE DEBUG] SSEManager stored globally");
