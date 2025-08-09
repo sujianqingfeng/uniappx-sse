@@ -63,6 +63,25 @@ class AndroidSSECallback implements SSEManager.SSECallback {
 
 const sseCallback = new AndroidSSECallback();
 
+// 将 localhost/127.0.0.1/::1 在 Android 模拟器上映射为 10.0.2.2
+function resolveAndroidLoopback(url: string): string {
+  let resolved = url;
+  if (resolved.length > 0) {
+    const patterns = [
+      '://localhost',
+      '://127.0.0.1',
+      '://[::1]'
+    ];
+    for (let i = 0; i < patterns.length; i++) {
+      const p = patterns[i];
+      if (resolved.indexOf(p) !== -1) {
+        resolved = resolved.replace(p, '://10.0.2.2');
+      }
+    }
+  }
+  return resolved;
+}
+
 /**
  * SSE 连接 API
  */
@@ -81,7 +100,8 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
     // 调用原生 SSEManager 连接方法（使用系统 API 实现）
     // 直接传递 UTSJSONObject，由桥接层转换
     const headers = options.headers != null ? options.headers as Map<string, any> : null;
-    manager.startConnection(options.url, headers, requestId, sseCallback);
+    const finalUrl = resolveAndroidLoopback(options.url);
+    manager.startConnection(finalUrl, headers, requestId, sseCallback);
     
     const result: SSEConnectResult = {
       requestId: requestId,
