@@ -223,6 +223,7 @@
             "usr": "s:12SSEFramework10SSEManagerC8delegateAA0B8Delegate_pSgvp",
             "mangledName": "$s12SSEFramework10SSEManagerC8delegateAA0B8Delegate_pSgvp",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "declAttributes": [
               "HasInitialValue",
               "HasStorage",
@@ -258,6 +259,7 @@
                 "mangledName": "$s12SSEFramework10SSEManagerC8delegateAA0B8Delegate_pSgvg",
                 "moduleName": "SSEFramework",
                 "implicit": true,
+                "isOpen": true,
                 "accessorKind": "get"
               },
               {
@@ -290,6 +292,7 @@
                 "mangledName": "$s12SSEFramework10SSEManagerC8delegateAA0B8Delegate_pSgvs",
                 "moduleName": "SSEFramework",
                 "implicit": true,
+                "isOpen": true,
                 "accessorKind": "set"
               },
               {
@@ -308,6 +311,7 @@
                 "mangledName": "$s12SSEFramework10SSEManagerC8delegateAA0B8Delegate_pSgvM",
                 "moduleName": "SSEFramework",
                 "implicit": true,
+                "isOpen": true,
                 "accessorKind": "_modify"
               }
             ]
@@ -372,6 +376,7 @@
             "usr": "s:12SSEFramework10SSEManagerC15startConnectionyySS_ypSStF",
             "mangledName": "$s12SSEFramework10SSEManagerC15startConnectionyySS_ypSStF",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "declAttributes": [
               "AccessControl",
               "RawDocComment"
@@ -399,6 +404,7 @@
             "usr": "s:12SSEFramework10SSEManagerC16cancelConnectionyySSF",
             "mangledName": "$s12SSEFramework10SSEManagerC16cancelConnectionyySSF",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "declAttributes": [
               "AccessControl"
             ],
@@ -419,6 +425,7 @@
             "usr": "s:12SSEFramework10SSEManagerC20cancelAllConnectionsyyF",
             "mangledName": "$s12SSEFramework10SSEManagerC20cancelAllConnectionsyyF",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "declAttributes": [
               "AccessControl"
             ],
@@ -475,6 +482,7 @@
             "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)URLSession:dataTask:didReceiveResponse:completionHandler:",
             "mangledName": "$s12SSEFramework10SSEManagerC10urlSession_8dataTask10didReceive17completionHandlerySo12NSURLSessionC_So0k4DataF0CSo13NSURLResponseCySo0K19ResponseDispositionVctF",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "objc_name": "URLSession:dataTask:didReceiveResponse:completionHandler:",
             "declAttributes": [
               "ObjC",
@@ -516,6 +524,7 @@
             "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)URLSession:dataTask:didReceiveData:",
             "mangledName": "$s12SSEFramework10SSEManagerC10urlSession_8dataTask10didReceiveySo12NSURLSessionC_So0i4DataF0C10Foundation0J0VtF",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "objc_name": "URLSession:dataTask:didReceiveData:",
             "declAttributes": [
               "ObjC",
@@ -564,6 +573,7 @@
             "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)URLSession:task:didCompleteWithError:",
             "mangledName": "$s12SSEFramework10SSEManagerC10urlSession_4task20didCompleteWithErrorySo12NSURLSessionC_So0J4TaskCs0I0_pSgtF",
             "moduleName": "SSEFramework",
+            "isOpen": true,
             "objc_name": "URLSession:task:didCompleteWithError:",
             "declAttributes": [
               "ObjC",
@@ -576,6 +586,7 @@
         "usr": "c:@M@SSEFramework@objc(cs)SSEManager",
         "mangledName": "$s12SSEFramework10SSEManagerC",
         "moduleName": "SSEFramework",
+        "isOpen": true,
         "declAttributes": [
           "AccessControl",
           "RawDocComment",
@@ -672,15 +683,22 @@
     },
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
+      "kind": "Dictionary",
+      "offset": 901,
+      "length": 3,
+      "value": "[]"
+    },
+    {
+      "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "StringLiteral",
-      "offset": 913,
+      "offset": 961,
       "length": 36,
       "value": "\"com.sseframework.connections.queue\""
     },
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "Dictionary",
-      "offset": 1473,
+      "offset": 1521,
       "length": 3,
       "value": "[]"
     }

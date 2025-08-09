@@ -38,13 +38,13 @@ class ContentViewModel: NSObject, ObservableObject, SSEManagerDelegate {
         ]
         
         // 开始连接
-        sseManager.startConnection(to: url, headers: headers, requestId: requestId)
+        sseManager.startConnection(url.absoluteString, headers, requestId)
         resultText = "正在连接到 SSE 服务器..."
     }
     
     func disconnect() {
         // 断开连接
-        sseManager.cancelConnection(for: requestId)
+        sseManager.cancelConnection(requestId)
         resultText = "已断开 SSE 连接"
         isConnected = false
     }
@@ -61,7 +61,7 @@ class ContentViewModel: NSObject, ObservableObject, SSEManagerDelegate {
     }
     
     // MARK: - SSEManagerDelegate
-    func sseManager(_ manager: SSEManager, didReceiveMessage message: String, requestId: String) {
+    func sseManagerMessage(_ manager: SSEManager, _ message: String, _ requestId: String) {
         DispatchQueue.main.async {
             // Try to parse as JSON
             if let data = message.data(using: .utf8),
@@ -96,21 +96,21 @@ class ContentViewModel: NSObject, ObservableObject, SSEManagerDelegate {
         }
     }
     
-    func sseManager(_ manager: SSEManager, didOpenWithRequestId requestId: String) {
+    func sseManagerOpen(_ manager: SSEManager, _ requestId: String) {
         DispatchQueue.main.async {
             self.isConnected = true
             self.resultText = "✅ SSE 连接已建立 (ID: \(requestId))"
         }
     }
     
-    func sseManager(_ manager: SSEManager, didFailWithError error: Error, requestId: String) {
+    func sseManagerError(_ manager: SSEManager, _ errorMessage: String, _ requestId: String) {
         DispatchQueue.main.async {
             self.isConnected = false
-            self.resultText = "❌ 连接错误 (ID: \(requestId)): \(error.localizedDescription)"
+            self.resultText = "❌ 连接错误 (ID: \(requestId)): \(errorMessage)"
         }
     }
     
-    func sseManager(_ manager: SSEManager, didCloseWithRequestId requestId: String) {
+    func sseManagerClose(_ manager: SSEManager, _ requestId: String) {
         DispatchQueue.main.async {
             self.isConnected = false
             self.resultText = "⏹️ 连接已关闭 (ID: \(requestId))"

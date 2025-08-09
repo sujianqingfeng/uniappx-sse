@@ -20,7 +20,7 @@ import { createSSEError } from '../unierror.uts';
  * 引入 SSEFramework
  * Framework 位于 ./Frameworks 目录下
  */
-import { SSEManager, SSEManagerDelegate,TestDelegate } from 'SSEFramework';
+import { SSEManager, SSEManagerDelegate } from 'SSEFramework';
 
 // 全局 SSE 管理器实例
 let sseManager : SSEManager | null = null;
@@ -38,16 +38,8 @@ function getSSEManager() : SSEManager {
 }
 
 
-class TestHandler implements  TestDelegate {
-
-  test(){}
-
-}
-
 // SSE 代理处理器，实现 SSEManagerDelegate 协议
 class SSEDelegateHandler implements SSEManagerDelegate {
-
-
 
 	// 接收到消息
 	sseManagerMessage(manager: SSEManager, message: string, requestId: string) {
