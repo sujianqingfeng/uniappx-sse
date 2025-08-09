@@ -8,17 +8,17 @@ import _Concurrency
 import _StringProcessing
 import _SwiftConcurrencyShims
 public protocol SSEManagerDelegate : AnyObject {
-  func sseManager(_ manager: SSEFramework.SSEManager, didReceiveMessage message: Swift.String, requestId: Swift.String)
-  func sseManager(_ manager: SSEFramework.SSEManager, didOpenWithRequestId requestId: Swift.String)
-  func sseManager(_ manager: SSEFramework.SSEManager, didFailWithError error: any Swift.Error, requestId: Swift.String)
-  func sseManager(_ manager: SSEFramework.SSEManager, didCloseWithRequestId requestId: Swift.String)
+  func sseManagerMessage(_ manager: SSEFramework.SSEManager, _ message: Swift.String, _ requestId: Swift.String)
+  func sseManagerOpen(_ manager: SSEFramework.SSEManager, _ requestId: Swift.String)
+  func sseManagerError(_ manager: SSEFramework.SSEManager, _ errorMessage: Swift.String, _ requestId: Swift.String)
+  func sseManagerClose(_ manager: SSEFramework.SSEManager, _ requestId: Swift.String)
 }
 @objc @_inheritsConvenienceInitializers public class SSEManager : ObjectiveC.NSObject, Foundation.URLSessionDataDelegate {
   weak public var delegate: (any SSEFramework.SSEManagerDelegate)?
   @objc override dynamic public init()
   @objc deinit
-  public func startConnection(to url: Foundation.URL, headers: [Swift.String : Swift.String] = [:], requestId: Swift.String)
-  public func cancelConnection(for requestId: Swift.String)
+  public func startConnection(_ urlString: Swift.String, _ headers: Any = [:], _ requestId: Swift.String)
+  public func cancelConnection(_ requestId: Swift.String)
   public func cancelAllConnections()
   @objc public func urlSession(_ session: Foundation.URLSession, dataTask: Foundation.URLSessionDataTask, didReceive response: Foundation.URLResponse, completionHandler: @escaping (Foundation.URLSession.ResponseDisposition) -> Swift.Void)
   @objc public func urlSession(_ session: Foundation.URLSession, dataTask: Foundation.URLSessionDataTask, didReceive data: Foundation.Data)

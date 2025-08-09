@@ -1,0 +1,86 @@
+---
+alwaysApply: false
+description: iOS 平台 UTS 插件开发要点（Info.plist/Entitlements/Framework 依赖、DCloudUTSFoundation、Swift/UTS 差异、线程与内存、Xcode 兼容性）
+---
+
+## UTS for iOS 开发指南（精要）
+
+- **编译与运行机制**
+  - 保存 UTS 源码会同步生成 Swift 代码，并产出对应插件 Framework 工程；真机运行/云打包时将该 framework 注入打包工程，生成 ipa。
+
+- **原生工程配置（app-ios）**
+  - **Info.plist 合并**: 在 `uni_modules/<plugin>/utssdk/app-ios/Info.plist` 增量放置键值（如权限描述、配置项）；云端打包自动与宿主合并。
+  - **Entitlements**: 在 `app-ios` 放置 entitlements 配置文件（如后台能力、推送等），随打包合并到宿主签名配置。
+  - **资源文件**: 资源随插件打包；通过内置库方法按资源名解析路径，避免硬编码。
+  - **三方依赖**:
+    - Framework：置于 `app-ios/Frameworks/<Name>.framework` 并在 `config.json` 声明；优先使用包含 `Modules` 的产物。
+    - 静态库 `.a`：需同时提供头文件及必要的链接选项；可能需要 `-ObjC`。
+    - CocoaPods：支持通过配置引入（官方文档方案）。
+
+- **iOS 内置库 DCloudUTSFoundation 常用能力**
+  - `getCurrentViewController(): UIViewController` 获取当前可见控制器。
+  - `colorWithString(value: string): UIColor` 颜色字符串转 UIColor。
+  - `getResourcePath(resourceName: string): string` 解析插件资源路径。
+  - UI 更新需在主线程调度；长任务放后台队列。
+
+- **Swift 与 UTS 差异与约定（关键点）**
+  - **数值类型**: UTS 无 `Int/Float/Double`，常规使用 `Number`。当实现/重写明确要求 `Int` 等原生签名（如协议/委托）时，可在 UTS 端使用对应原生类型满足签名。
+  - **协议/委托**: 使用 `implements` 遵循协议；方法签名（参数类型、可选与返回值）需与原生一致。
+  - **参数标签**: 与 Swift 外部参数标签规则兼容；需要外部标签的按同名传参；无标签的方法按无标签形式调用。
+  - **可选类型与错误**: 可选链 `?.`、空合并；原生 `throw/try/catch` 语义在 UTS 中可用。
+  - **闭包循环引用**: 若闭包被 `this` 持有且闭包内访问了 `this`，在闭包体首行加入 `"[weak self]"`，之后通过可选链访问 `this`。
+
+  示例（避免循环引用）：
+
+  ```uts
+  this.callback = (res: string) => {
+    "[weak self]"
+    console.log(this?.name, res)
+  }
+  ```
+
+### Swift 与 UTS 重点差异（详解）
+
+- **类型系统**
+  - **数值类型**: UTS 仅有 `Number`；当实现原生协议/委托且签名要求 `Int/Float/Double` 时，可在 UTS 中显式使用对应原生类型以满足签名。
+  - **可选/空值**: UTS 使用可选链 `?.` 与空值 `null`；与 Swift Optional 对应。标注 `"[weak self]"` 后 `this` 为可选，访问需用可选链或非空断言。
+  - **字典**: UTS 侧推荐 `UTSJSONObject` 表示动态键值；Swift 侧常为 `[String: Any]`。跨端时建议在边界层做强类型转换，减少在业务层广泛使用动态对象。
+  - **数组与元组**: UTS 支持数组；当前不支持元组。涉及多返回值请改为对象封装或回调多参数。
+  - **枚举**: 建议使用具备稳定 `rawValue`（字符串/数字）的枚举，与 Swift `RawRepresentable` 互通更稳妥。
+
+- **函数与方法**
+  - **参数标签**: 兼容 Swift 外部参数标签规则。需要外部标签的以同名标签调用；明确标记为“无标签”的按 `fn(value)` 调用。
+  - **默认/可选参数**: 两端均支持；注意在跨端签名保持一致。
+  - **重载限制**: uni-app 的 Android 环境不支持按参数个数/类型区分重载；为跨端一致性，iOS 侧也避免重载，使用不同函数名区分。
+  - **抛错与捕获**: 支持 `try/catch` 语义；抛出的错误对象建议统一由 `unierror.uts` 构造。
+  - **异步模型**: 单次任务优先 Promise；事件流用 `onXxx/offXxx` 或 `@UTSJS.keepAlive` 的 options 回调。若使用 `async/await`，需确保各端编译目标支持且对外接口仍保持 Promise 友好。
+
+- **类、协议与构造**
+  - **协议/委托**: 使用 `implements` 遵循协议；方法签名（含参数标签、可选与返回类型）需与原生严格一致。
+  - **继承与可见性**: 避免依赖 Swift 特定修饰（如 `open`/`final` 等）在 UTS 层表达语义；将开放/限制通过 API 设计体现。
+  - **构造调用**: 构造参数遵循 Swift 标签规则；涉及“无参数标签”的构造按无标签方式调用。
+
+- **Target-Action 与选择器**
+  - 使用 `addTarget(..., action: ..., for: ...)` 等形态时，注意方法签名需符合 Cocoa Touch 约定（如 `action(_ sender: UIControl)`）；在 UTS 侧保持与 Swift 侧签名一致。
+
+- **Swift 特有修饰与指针**
+  - `@objc`、`dynamic`、`inout`、指针相关（`UnsafePointer` 等）不直接暴露在 UTS 层。需通过封装的 Swift API 以安全形态暴露给 UTS。
+
+- **系统版本判断**
+  - 调用新 API 前做可用性/版本判断，确保旧系统不触发崩溃。建议封装统一的版本判断入口，或在 Swift 层做 `#available` 防护。
+
+- **生命周期与资源释放**
+  - 长连接/事件流提供幂等的 `stop/off` 释放路径；页面卸载/应用进入后台时注意回收。
+  - 原生对象需显式销毁：`UTSiOS.destroyInstance(this)`，避免泄漏。
+
+- **线程模型**
+  - 网络/IO/解码放后台队列；需要触达 UI 时切回主线程再操作视图。
+
+- **Swift 产物与 Xcode 版本兼容性**
+  - 高版本 Xcode 编译的 Swift Framework/静态库无法在低版本 Xcode 构建；请选用与打包机相同或更低版本的 Xcode。
+  - 若使用更低版本编译库，请在 Target 的 Build Settings 打开 `Build Libraries for Distribution = Yes`。
+  - 产物需包含所需架构（真机 arm64；模拟器视需含 arm64/x86_64）。
+
+参考文档：
+- uts for iOS（官方）: https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-ios.html
+

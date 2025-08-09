@@ -1,51 +1,125 @@
 /**
- * 引用 Android 系统库，示例如下：
- * import { Context } from "android.content.Context";
- * [可选实现，按需引入]
+ * Android SSE 插件实现
+ * 使用 Kotlin 原生 SSE 管理器
  */
 
-import { SayHiApiOptions, SayHiApiResult, SayHiApi, SayHiApiSync } from '../interface.uts';
-import { SayHiApiFailImpl } from '../unierror';
+import { 
+  SSEConnectOptions, 
+  SSEConnectResult, 
+  SSEMessageEvent, 
+  SSEErrorEvent, 
+  SSECloseEvent, 
+  SSEEventListenerOptions,
+  SSEConnectApi,
+  SSECloseApi,
+  SSEAddEventListenerApi,
+  SSERemoveEventListenerApi
+} from '../interface.uts';
+
+import { createSSEError } from '../unierror.uts';
 
 /**
- * 引入三方库
- * [可选实现，按需引入]
- *
- * 在 Android 平台引入三方库有以下两种方式：
- * 1、[推荐] 通过 仓储 方式引入，将 三方库的依赖信息 配置到 config.json 文件下的 dependencies 字段下。详细配置方式[详见](https://uniapp.dcloud.net.cn/plugin/uts-plugin.html#dependencies)
- * 2、直接引入，将 三方库的aar或jar文件 放到libs目录下。更多信息[详见](https://uniapp.dcloud.net.cn/plugin/uts-plugin.html#android%E5%B9%B3%E5%8F%B0%E5%8E%9F%E7%94%9F%E9%85%8D%E7%BD%AE)
- *
- * 在通过上述任意方式依赖三方库后，使用时需要在文件中 import，如下示例：
- * import { LottieAnimationView } from 'com.airbnb.lottie.LottieAnimationView'
+ * 引入 SSEManager 原生库
  */
+import SSEManager from 'com.hens.sse.library.SSEManager';
+
+// 全局 SSE 管理器实例
+let sseManager: SSEManager | null = null;
+// 事件监听器映射
+let eventListenersMap: Map<string, SSEEventListenerOptions> = new Map();
+
+// 初始化 SSE 管理器
+function getSSEManager(): SSEManager {
+  if (!sseManager) {
+    sseManager = new SSEManager();
+  }
+  return sseManager;
+}
 
 /**
- * UTSAndroid 为平台内置对象，不需要 import 可直接调用其API，[详见](https://uniapp.dcloud.net.cn/uts/utsandroid.html#utsandroid)
+ * SSE 连接 API
  */
-
-// 引入 sse-lib-debug.aar 中的 SayHiLib 类
-import SayHiLib from 'com.hens.sse.library.SayHiLib';
-
-export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {  
+export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
   try {
-    // 创建 SayHiLib 实例
-    const sayHiLib = new SayHiLib();
+    const manager = getSSEManager();
+    const requestId = options.requestId || `sse_${Date.now()}`;
     
-    // 调用 say 方法
-    const result = sayHiLib.say(options.say);
-    console.log("res",result)
+    // 存储事件监听器
+    if (options.onMessage || options.onError || options.onOpen || options.onClose) {
+      eventListenersMap.set(requestId, {
+        onMessage: options.onMessage,
+        onError: options.onError,
+        onOpen: options.onOpen,
+        onClose: options.onClose
+      });
+    }
     
-    // 返回成功结果
-    const res : SayHiApiResult = {
-      result: result
+    // 调用原生 SSEManager 连接方法
+    manager.connect(options.url, options.headers || {}, requestId);
+    
+    const result: SSEConnectResult = {
+      requestId: requestId,
+      message: "Connection started"
     };
-    options.success?.(res);
-    options.complete?.(res);
+    
+    options.success?.(result);
+    options.complete?.(result);
+    
   } catch (error) {
-    // 返回错误
-    const err = new SayHiApiFailImpl(9010001);
-    options.fail?.(err);
-    options.complete?.(err);
+    const failError = createSSEError(9020001, (error as any)?.message || "Failed to start SSE connection");
+    options.fail?.(failError);
+    options.complete?.(failError);
+  }
+};
+
+/**
+ * SSE 关闭连接 API
+ */
+export const sseCloseApi: SSECloseApi = function (requestId: string) {
+  try {
+    const manager = getSSEManager();
+    if (manager != null) {
+      manager.disconnect(requestId);
+      eventListenersMap.delete(requestId);
+    }
+  } catch (error) {
+    console.error('Error closing SSE connection:', (error as any)?.message);
+  }
+};
+
+/**
+ * SSE 添加事件监听器 API
+ */
+export const sseAddEventListenerApi: SSEAddEventListenerApi = function (options: SSEEventListenerOptions) {
+  if (options.requestId != null) {
+    const existingListeners = eventListenersMap.get(options.requestId);
+    if (existingListeners == null) {
+      eventListenersMap.set(options.requestId, options);
+    } else {
+      eventListenersMap.set(options.requestId, { ...existingListeners, ...options });
+    }
+  }
+};
+
+/**
+ * SSE 移除事件监听器 API
+ */
+export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
+  if (requestId != null) {
+    eventListenersMap.delete(requestId);
+  } else {
+    eventListenersMap.clear();
+  }
+};
+
+/**
+ * 关闭所有 SSE 连接
+ */
+export function closeAllSSEConnections(): void {
+  const manager = getSSEManager();
+  if (manager) {
+    manager.disconnectAll();
+    eventListenersMap.clear();
   }
 }
 

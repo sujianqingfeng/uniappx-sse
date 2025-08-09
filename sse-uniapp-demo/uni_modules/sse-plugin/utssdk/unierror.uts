@@ -33,7 +33,8 @@ export class SSEApiFailImpl extends UniError implements SSEApiFail {
     super();
     this.errSubject = UniErrorSubject;
     this.errCode = errCode;
-    this.errMsg = message || SSEAPIErrors.get(errCode) || "";
+    const mappedMsg = SSEAPIErrors.get(errCode);
+    this.errMsg = message != null ? message : (mappedMsg != null ? (mappedMsg as string) : "");
   }
 }
 

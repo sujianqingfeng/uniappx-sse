@@ -8,7 +8,7 @@
  */
 export type SSEConnectOptions = {
   url : string
-  headers ?: Record<string, string>
+  headers ?: UTSJSONObject
   requestId ?: string
   success ?: (res : SSEConnectResult) => void
   fail ?: (res : SSEApiFail) => void
@@ -50,10 +50,10 @@ export type SSECloseEvent = {
  * SSE 事件监听器选项
  */
 export type SSEEventListenerOptions = {
-  requestId ?: string,
-  onMessage ?: (event : SSEMessageEvent) => void,
-  onError ?: (event : SSEErrorEvent) => void,
-  onClose ?: (event : SSECloseEvent) => void,
+  requestId ?: string
+  onMessage ?: (event : SSEMessageEvent) => void
+  onError ?: (event : SSEErrorEvent) => void
+  onClose ?: (event : SSECloseEvent) => void
   onOpen ?: (event : SSEConnectResult) => void
 }
 
@@ -108,4 +108,9 @@ export declare const closeAllSSEConnections: () => void;
  * 从 unierror.uts 导入
  */
 export declare const createSSEError: (code: SSEApiErrorCode, message?: string) => SSEApiFail;
+
+/**
+ * SayHi API - 用于测试原生库调用
+ */
+export declare const sayHiApi: SayHiApi;
 

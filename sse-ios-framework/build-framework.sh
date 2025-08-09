@@ -186,6 +186,13 @@ build_framework() {
         
         lipo -create "${lipo_args[@]}" -output "$universal_binary"
         
+        # Merge swift modules from all architectures
+        for temp_framework in "${temp_frameworks[@]:1}"; do
+            if [ -d "$temp_framework/Modules/$FRAMEWORK_NAME.swiftmodule" ]; then
+                cp -r "$temp_framework/Modules/$FRAMEWORK_NAME.swiftmodule/"* "$output_path/Modules/$FRAMEWORK_NAME.swiftmodule/"
+            fi
+        done
+        
         for temp_framework in "${temp_frameworks[@]}"; do
             rm -rf "$temp_framework"
         done

@@ -9,13 +9,13 @@ import Foundation
 /// SSE 事件回调协议
 public protocol SSEManagerDelegate: AnyObject {
     /// 接收到消息
-    func sseManager(_ manager: SSEManager, didReceiveMessage message: String, requestId: String)
+    func sseManagerMessage(_ manager: SSEManager, _ message: String, _ requestId: String)
     /// 连接打开
-    func sseManager(_ manager: SSEManager, didOpenWithRequestId requestId: String)
+    func sseManagerOpen(_ manager: SSEManager, _ requestId: String)
     /// 连接错误
-    func sseManager(_ manager: SSEManager, didFailWithError error: Error, requestId: String)
+    func sseManagerError(_ manager: SSEManager, _ errorMessage: String, _ requestId: String)
     /// 连接关闭
-    func sseManager(_ manager: SSEManager, didCloseWithRequestId requestId: String)
+    func sseManagerClose(_ manager: SSEManager, _ requestId: String)
 }
 
 // MARK: - SSEManager
@@ -42,7 +42,7 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
     }
     
     // MARK: - Public Methods
-    public func startConnection(to url: URL, headers: [String: String] = [:], requestId: String) {
+    public func startConnection(_ urlString: String, _ headers: Any = [:], _ requestId: String) {
         connectionsQueue.sync {
             if tasks[requestId] != nil {
                 print("SSEManager: Connection with requestId \(requestId) already exists.")
@@ -50,13 +50,27 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
             }
         }
         
+        guard let url = URL(string: urlString) else {
+            print("SSEManager: Invalid URL string: \(urlString)")
+            return
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
+        // 处理 Any 类型的 headers，转换为 [String: String]
+        if let headersDict = headers as? [String: String] {
+            for (key, value) in headersDict {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        } else if let headersAny = headers as? [String: Any] {
+            for (key, value) in headersAny {
+                if let stringValue = value as? String {
+                    request.setValue(stringValue, forHTTPHeaderField: key)
+                }
+            }
         }
         
         let task = session.dataTask(with: request)
@@ -69,7 +83,7 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         task.resume()
     }
     
-    public func cancelConnection(for requestId: String) {
+    public func cancelConnection(_ requestId: String) {
         connectionsQueue.sync { [weak self] in
             guard let self = self else { return }
             if let task = self.tasks[requestId] {
@@ -77,7 +91,7 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
                 self.tasks.removeValue(forKey: requestId)
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
-                    self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
+                    self.delegate?.sseManagerClose(self, requestId)
                 }
             }
         }
@@ -97,7 +111,7 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 for requestId in allRequestIds {
-                    self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
+                    self.delegate?.sseManagerClose(self, requestId)
                 }
             }
         }
@@ -113,7 +127,7 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         if let requestId = dataTask.taskDescription {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
-                self.delegate?.sseManager(self, didOpenWithRequestId: requestId)
+                self.delegate?.sseManagerOpen(self, requestId)
             }
         }
         completionHandler(.allow)
@@ -131,7 +145,7 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
                 if !message.isEmpty {
                     DispatchQueue.main.async { [weak self] in
                         guard let self = self else { return }
-                        self.delegate?.sseManager(self, didReceiveMessage: message, requestId: requestId)
+                        self.delegate?.sseManagerMessage(self, message, requestId)
                     }
                 }
             }
@@ -148,12 +162,12 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         if let error = error {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
-                self.delegate?.sseManager(self, didFailWithError: error, requestId: requestId)
+                self.delegate?.sseManagerError(self, (error as NSError).localizedDescription, requestId)
             }
         } else {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
-                self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
+                self.delegate?.sseManagerClose(self, requestId)
             }
         }
     }

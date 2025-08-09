@@ -21,8 +21,8 @@
         "children": [
           {
             "kind": "Function",
-            "name": "sseManager",
-            "printedName": "sseManager(_:didReceiveMessage:requestId:)",
+            "name": "sseManagerMessage",
+            "printedName": "sseManagerMessage(_:_:_:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -49,8 +49,8 @@
               }
             ],
             "declKind": "Func",
-            "usr": "s:12SSEFramework18SSEManagerDelegateP10sseManager_17didReceiveMessage9requestIdyAA0B0C_S2StF",
-            "mangledName": "$s12SSEFramework18SSEManagerDelegateP10sseManager_17didReceiveMessage9requestIdyAA0B0C_S2StF",
+            "usr": "s:12SSEFramework18SSEManagerDelegateP17sseManagerMessageyyAA0B0C_S2StF",
+            "mangledName": "$s12SSEFramework18SSEManagerDelegateP17sseManagerMessageyyAA0B0C_S2StF",
             "moduleName": "SSEFramework",
             "genericSig": "<τ_0_0 where τ_0_0 : SSEFramework.SSEManagerDelegate>",
             "sugared_genericSig": "<Self where Self : SSEFramework.SSEManagerDelegate>",
@@ -63,8 +63,8 @@
           },
           {
             "kind": "Function",
-            "name": "sseManager",
-            "printedName": "sseManager(_:didOpenWithRequestId:)",
+            "name": "sseManagerOpen",
+            "printedName": "sseManagerOpen(_:_:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -85,8 +85,8 @@
               }
             ],
             "declKind": "Func",
-            "usr": "s:12SSEFramework18SSEManagerDelegateP10sseManager_20didOpenWithRequestIdyAA0B0C_SStF",
-            "mangledName": "$s12SSEFramework18SSEManagerDelegateP10sseManager_20didOpenWithRequestIdyAA0B0C_SStF",
+            "usr": "s:12SSEFramework18SSEManagerDelegateP14sseManagerOpenyyAA0B0C_SStF",
+            "mangledName": "$s12SSEFramework18SSEManagerDelegateP14sseManagerOpenyyAA0B0C_SStF",
             "moduleName": "SSEFramework",
             "genericSig": "<τ_0_0 where τ_0_0 : SSEFramework.SSEManagerDelegate>",
             "sugared_genericSig": "<Self where Self : SSEFramework.SSEManagerDelegate>",
@@ -99,8 +99,8 @@
           },
           {
             "kind": "Function",
-            "name": "sseManager",
-            "printedName": "sseManager(_:didFailWithError:requestId:)",
+            "name": "sseManagerError",
+            "printedName": "sseManagerError(_:_:_:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -115,9 +115,9 @@
               },
               {
                 "kind": "TypeNominal",
-                "name": "Error",
-                "printedName": "any Swift.Error",
-                "usr": "s:s5ErrorP"
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
               },
               {
                 "kind": "TypeNominal",
@@ -127,8 +127,8 @@
               }
             ],
             "declKind": "Func",
-            "usr": "s:12SSEFramework18SSEManagerDelegateP10sseManager_16didFailWithError9requestIdyAA0B0C_s0I0_pSStF",
-            "mangledName": "$s12SSEFramework18SSEManagerDelegateP10sseManager_16didFailWithError9requestIdyAA0B0C_s0I0_pSStF",
+            "usr": "s:12SSEFramework18SSEManagerDelegateP15sseManagerErroryyAA0B0C_S2StF",
+            "mangledName": "$s12SSEFramework18SSEManagerDelegateP15sseManagerErroryyAA0B0C_S2StF",
             "moduleName": "SSEFramework",
             "genericSig": "<τ_0_0 where τ_0_0 : SSEFramework.SSEManagerDelegate>",
             "sugared_genericSig": "<Self where Self : SSEFramework.SSEManagerDelegate>",
@@ -141,8 +141,8 @@
           },
           {
             "kind": "Function",
-            "name": "sseManager",
-            "printedName": "sseManager(_:didCloseWithRequestId:)",
+            "name": "sseManagerClose",
+            "printedName": "sseManagerClose(_:_:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -163,8 +163,8 @@
               }
             ],
             "declKind": "Func",
-            "usr": "s:12SSEFramework18SSEManagerDelegateP10sseManager_21didCloseWithRequestIdyAA0B0C_SStF",
-            "mangledName": "$s12SSEFramework18SSEManagerDelegateP10sseManager_21didCloseWithRequestIdyAA0B0C_SStF",
+            "usr": "s:12SSEFramework18SSEManagerDelegateP15sseManagerCloseyyAA0B0C_SStF",
+            "mangledName": "$s12SSEFramework18SSEManagerDelegateP15sseManagerCloseyyAA0B0C_SStF",
             "moduleName": "SSEFramework",
             "genericSig": "<τ_0_0 where τ_0_0 : SSEFramework.SSEManagerDelegate>",
             "sugared_genericSig": "<Self where Self : SSEFramework.SSEManagerDelegate>",
@@ -342,7 +342,7 @@
           {
             "kind": "Function",
             "name": "startConnection",
-            "printedName": "startConnection(to:headers:requestId:)",
+            "printedName": "startConnection(_:_:_:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -351,30 +351,15 @@
               },
               {
                 "kind": "TypeNominal",
-                "name": "URL",
-                "printedName": "Foundation.URL",
-                "usr": "s:10Foundation3URLV"
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
               },
               {
                 "kind": "TypeNominal",
-                "name": "Dictionary",
-                "printedName": "[Swift.String : Swift.String]",
-                "children": [
-                  {
-                    "kind": "TypeNominal",
-                    "name": "String",
-                    "printedName": "Swift.String",
-                    "usr": "s:SS"
-                  },
-                  {
-                    "kind": "TypeNominal",
-                    "name": "String",
-                    "printedName": "Swift.String",
-                    "usr": "s:SS"
-                  }
-                ],
-                "hasDefaultArg": true,
-                "usr": "s:SD"
+                "name": "ProtocolComposition",
+                "printedName": "Any",
+                "hasDefaultArg": true
               },
               {
                 "kind": "TypeNominal",
@@ -384,8 +369,8 @@
               }
             ],
             "declKind": "Func",
-            "usr": "s:12SSEFramework10SSEManagerC15startConnection2to7headers9requestIdy10Foundation3URLV_SDyS2SGSStF",
-            "mangledName": "$s12SSEFramework10SSEManagerC15startConnection2to7headers9requestIdy10Foundation3URLV_SDyS2SGSStF",
+            "usr": "s:12SSEFramework10SSEManagerC15startConnectionyySS_ypSStF",
+            "mangledName": "$s12SSEFramework10SSEManagerC15startConnectionyySS_ypSStF",
             "moduleName": "SSEFramework",
             "declAttributes": [
               "AccessControl",
@@ -396,7 +381,7 @@
           {
             "kind": "Function",
             "name": "cancelConnection",
-            "printedName": "cancelConnection(for:)",
+            "printedName": "cancelConnection(_:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -411,8 +396,8 @@
               }
             ],
             "declKind": "Func",
-            "usr": "s:12SSEFramework10SSEManagerC16cancelConnection3forySS_tF",
-            "mangledName": "$s12SSEFramework10SSEManagerC16cancelConnection3forySS_tF",
+            "usr": "s:12SSEFramework10SSEManagerC16cancelConnectionyySSF",
+            "mangledName": "$s12SSEFramework10SSEManagerC16cancelConnectionyySSF",
             "moduleName": "SSEFramework",
             "declAttributes": [
               "AccessControl"
@@ -681,21 +666,21 @@
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "Dictionary",
-      "offset": 890,
+      "offset": 853,
       "length": 3,
       "value": "[]"
     },
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "StringLiteral",
-      "offset": 950,
+      "offset": 913,
       "length": 36,
       "value": "\"com.sseframework.connections.queue\""
     },
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "Dictionary",
-      "offset": 1513,
+      "offset": 1473,
       "length": 3,
       "value": "[]"
     }
