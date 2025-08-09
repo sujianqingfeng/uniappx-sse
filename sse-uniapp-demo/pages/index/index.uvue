@@ -1,5 +1,5 @@
 <template>
-  <view class="container" :style="{ height: pageHeight + 'px' }">
+  <view class="container">
     <!-- 固定头部区域 -->
     <view class="header">
       <text class="app-title">SSE 多连接 Demo</text>
@@ -7,7 +7,7 @@
     </view>
 
     <!-- 中间可滚动区域（占据 header 与 footer 之间的空间） -->
-    <scroll-view class="page-scroll" scroll-y="true" :style="{ top: headerHeight + 'px', bottom: footerHeight + 'px' }">
+    <scroll-view class="page-scroll" scroll-y="true">
       <view class="content">
         <!-- 多连接管理卡片 -->
         <view class="card">
@@ -82,68 +82,45 @@
 <script>
 import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from "@/uni_modules/sse-plugin";
 
+type Message = {
+  time: string
+  content: string
+}
+
+type Connection = {
+  requestId: string
+  url: string
+  isConnected: boolean
+  status: string
+  messages: Message[]
+}
+
 export default {
   data() {
-    return {
+      return {
       resultMessage: '',
       serverUrl: 'http://localhost:3000/sse',
-      connections: [], // { requestId, url, isConnected, status, messages: [] }
-      pageHeight: 0,
-      headerHeight: 0,
-      footerHeight: 0
+        connections: [] as Connection[]
     }
   },
   onLoad() {
     console.log("[UniApp DEBUG] onLoad - setup global SSE listeners");
     this.setupSSEEventListeners();
-    this.calcPageHeight();
-  },
-  onReady() {
-    // 渲染完成后测量头部与底部高度，计算中间滚动区域
-    this.measureFixedAreas();
   },
   onUnload() {
     this.cleanupSSE();
   },
   methods: {
-    calcPageHeight() {
-      try {
-        const sys = uni.getSystemInfoSync();
-        this.pageHeight = sys.windowHeight; // px
-      } catch (e) {
-        this.pageHeight = 800;
-      }
-    },
-    measureFixedAreas() {
-      try {
-        const query = uni.createSelectorQuery().in(this);
-        query.select('.header').boundingClientRect();
-        query.select('.footer').boundingClientRect();
-        query.exec((res) => {
-          if (Array.isArray(res)) {
-            const headerRect = res[0];
-            const footerRect = res[1];
-            this.headerHeight = headerRect && headerRect.height ? Math.round(headerRect.height) : 60;
-            this.footerHeight = footerRect && footerRect.height ? Math.round(footerRect.height) : 48;
-          } else {
-            this.headerHeight = 60;
-            this.footerHeight = 48;
-          }
-        });
-      } catch (e) {
-        this.headerHeight = 60;
-        this.footerHeight = 48;
-      }
-    },
+    
     // 生成短 ID 显示
-    shortId(id) {
-      if (!id) return '';
+    shortId(id: string): string {
+      if (id.length === 0) return '';
       return id.length > 8 ? id.slice(0, 4) + '…' + id.slice(-3) : id;
     },
 
     // 添加连接
     addConnection() {
-      if (!this.serverUrl) {
+      if (this.serverUrl.length === 0) {
         this.resultMessage = '请输入服务器 URL';
         return;
       }
@@ -159,7 +136,7 @@ export default {
     },
 
     // 连接指定连接
-    connectConnection(requestId) {
+    connectConnection(requestId: string) {
       const idx = this.connections.findIndex(c => c.requestId === requestId);
       if (idx < 0) return;
       const conn = this.connections[idx];
@@ -176,7 +153,7 @@ export default {
     },
 
     // 断开指定连接
-    disconnectConnection(requestId) {
+    disconnectConnection(requestId: string) {
       const idx = this.connections.findIndex(c => c.requestId === requestId);
       if (idx < 0) return;
       sseCloseApi(requestId);
@@ -197,7 +174,7 @@ export default {
     },
 
     // 移除连接（如已连接将触发 onClose 回调）
-    removeConnection(requestId) {
+    removeConnection(requestId: string) {
       const idx = this.connections.findIndex(c => c.requestId === requestId);
       if (idx < 0) return;
       // 若仍连接，先断开
@@ -235,7 +212,7 @@ export default {
       });
     },
 
-    addMessage(requestId, content) {
+    addMessage(requestId: string, content: string) {
       const idx = this.connections.findIndex(c => c.requestId === requestId);
       if (idx < 0) return;
       const now = new Date();
@@ -248,7 +225,7 @@ export default {
 
     cleanupSSE() {
       this.disconnectAll();
-      sseRemoveEventListenerApi(); // 清理全局监听
+      sseRemoveEventListenerApi(null); // 清理全局监听（全局清空需显式传 null）
     }
   }
 }
@@ -260,19 +237,18 @@ export default {
     display: flex;
     flex-direction: column;
     position: relative;
+    height: 100vh;
+    overflow: hidden;
   }
 	
 	/* 头部区域 */
   .header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
+    /* 保持在文档流中以配合 flex 布局 */
     padding: 12px 20px 10px;
     text-align: center;
     background: #f5f5f5;
-    z-index: 100;
     border-bottom: 1px solid #eaeaea;
+    flex-shrink: 0;
   }
 	
   .app-title {
@@ -295,9 +271,9 @@ export default {
     flex-direction: column;
   }
   .page-scroll {
-    position: absolute;
-    left: 0;
-    right: 0;
+    /* 占据 header 与 footer 之间的剩余空间 */
+    flex: 1 1 auto;
+    min-height: 0; /* 允许内部滚动 */
   }
 	
   .card {
@@ -394,14 +370,12 @@ export default {
 	
 	/* 底部 */
   .footer {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    /* 保持在文档流底部 */
     padding: 12px 20px;
     text-align: center;
     background: #f5f5f5;
     border-top: 1px solid #eaeaea;
+    flex-shrink: 0;
   }
 	
   .footer-text {
