@@ -1,9 +1,5 @@
-//
-//  SSEFramework.swift
-//  SSEFramework
-//
-
 import Foundation
+import DCloudUTSFoundation
 
 // MARK: - SSEManagerDelegate
 /// SSE 事件回调协议
@@ -30,7 +26,6 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
 
     // MARK: - Initializer
     public override init() {
-        print("SSEManager: init called")
         super.init()
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = TimeInterval(10)
@@ -45,21 +40,24 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
     // MARK: - Public Methods
     public func startConnection(_ urlString: String, _ headers: Any = [:], _ requestId: String) {
         print("SSEManager: startConnection called for requestId: \(requestId), URL: \(urlString)")
+        console.log("SSEManager: startConnection called for requestId: \(requestId), URL: \(urlString)")
         
         connectionsQueue.sync {
             if tasks[requestId] != nil {
                 print("SSEManager: Connection with requestId \(requestId) already exists.")
+                console.log("SSEManager: Connection with requestId \(requestId) already exists.")
                 return
             }
         }
         
         guard let url = URL(string: urlString) else {
             print("SSEManager: Invalid URL string: \(urlString)")
+            console.log("SSEManager: Invalid URL string: \(urlString)")
             return
         }
         
         print("SSEManager: URL created successfully: \(url)")
-        
+        console.log("SSEManager: URL created successfully: \(url)")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
@@ -80,15 +78,18 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         
         let task = session.dataTask(with: request)
         task.taskDescription = requestId
-        
+                
         print("SSEManager: URLSessionDataTask created for requestId: \(requestId)")
-        
+        console.log("SSEManager: URLSessionDataTask created for requestId: \(requestId)")
+
         connectionsQueue.async(flags: .barrier) {
             self.tasks[requestId] = task
             print("SSEManager: Task stored for requestId: \(requestId)")
+            console.log("SSEManager: Task stored for requestId: \(requestId)")
         }
         
         print("SSEManager: Resuming task for requestId: \(requestId)")
+        console.log("SSEManager: Resuming task for requestId: \(requestId)")
         task.resume()
     }
     
@@ -142,21 +143,16 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         
         print("SSEManager: Valid HTTP response with status: \(httpResponse.statusCode)")
         console.log("SSEManager: Valid HTTP response with status: \(httpResponse.statusCode)")
-        
+
         if let requestId = dataTask.taskDescription {
             print("SSEManager: Calling sseManagerOpen for requestId: \(requestId)")
             console.log("SSEManager: Calling sseManagerOpen for requestId: \(requestId)")
-            DispatchQueue.main.async { [unowned self] in
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 print("SSEManager: Dispatching sseManagerOpen to main thread for requestId: \(requestId)")
                 console.log("SSEManager: Dispatching sseManagerOpen to main thread for requestId: \(requestId)")
-                if let delegate = self.delegate {
-                    print("SSEManager: Delegate is not nil, calling sseManagerOpen")
-                    console.log("SSEManager: Delegate is not nil, calling sseManagerOpen")
-                    delegate.sseManagerOpen(self, requestId)
-                } else {
-                    print("SSEManager: Delegate is nil, cannot call sseManagerOpen")
-                    console.log("SSEManager: Delegate is nil, cannot call sseManagerOpen")
-                }
+                self.delegate?.sseManagerOpen(self, requestId)
             }
         } else {
             print("SSEManager: No requestId found in taskDescription")
@@ -183,17 +179,11 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
                 if !message.isEmpty {
                     print("SSEManager: Processing message for requestId \(requestId): \(message)")
                     console.log("SSEManager: Processing message for requestId \(requestId): \(message)")
-                    DispatchQueue.main.async { [unowned self] in
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
                         print("SSEManager: Dispatching sseManagerMessage to main thread for requestId: \(requestId)")
                         console.log("SSEManager: Dispatching sseManagerMessage to main thread for requestId: \(requestId)")
-                        if let delegate = self.delegate {
-                            print("SSEManager: Delegate is not nil, calling sseManagerMessage")
-                            console.log("SSEManager: Delegate is not nil, calling sseManagerMessage")
-                            delegate.sseManagerMessage(self, message, requestId)
-                        } else {
-                            print("SSEManager: Delegate is nil, cannot call sseManagerMessage")
-                            console.log("SSEManager: Delegate is nil, cannot call sseManagerMessage")
-                        }
+                        self.delegate?.sseManagerMessage(self, message, requestId)
                     }
                 }
             }
@@ -201,29 +191,20 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
     }
     
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let requestId = task.taskDescription else { 
-            print("SSEManager: No requestId found in taskDescription for completion")
-            console.log("SSEManager: No requestId found in taskDescription for completion")
-            return 
-        }
-        
-        print("SSEManager: Task completed for requestId: \(requestId), error: \(error?.localizedDescription ?? "none")")
-        console.log("SSEManager: Task completed for requestId: \(requestId), error: \(error?.localizedDescription ?? "none")")
+        guard let requestId = task.taskDescription else { return }
         
         connectionsQueue.async(flags: .barrier) { [weak self] in
             self?.tasks.removeValue(forKey: requestId)
         }
         
         if let error = error {
-            DispatchQueue.main.async { [unowned self] in
-                print("SSEManager: Dispatching error to main thread for requestId: \(requestId)")
-                console.log("SSEManager: Dispatching error to main thread for requestId: \(requestId)")
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.delegate?.sseManagerError(self, (error as NSError).localizedDescription, requestId)
             }
         } else {
-            DispatchQueue.main.async { [unowned self] in
-                print("SSEManager: Dispatching close to main thread for requestId: \(requestId)")
-                console.log("SSEManager: Dispatching close to main thread for requestId: \(requestId)")
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.delegate?.sseManagerClose(self, requestId)
             }
         }

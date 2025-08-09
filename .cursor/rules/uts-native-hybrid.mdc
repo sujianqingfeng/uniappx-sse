@@ -1,0 +1,105 @@
+---
+description: UTS 原生混编（Kotlin/Swift/ArkTS/JS）在 uni-app x 插件中的使用要点、目录规范、命名规则、平台条件编译与互调清单（基于官方文档）
+globs: sse-uniapp-demo/uni_modules/**,sse-uniapp-demo/**/*.uts,sse-uniapp-demo/**/*.uvue,sse-uniapp-demo/**/utssdk/app-android/**,sse-uniapp-demo/**/utssdk/app-ios/**
+---
+
+### 适用场景
+- **目标**: 在 `uni_modules` 下的 UTS 插件中，与原生 `Kotlin/Swift/ArkTS/Java` 混编，供 `uvue`/`uts` 调用，提升性能与开发效率。
+- **依据**: 官方文档“UTS 原生混编”说明（HBuilderX ≥ 4.25）。
+
+参考文档: [UTS 原生混编（DCloud）](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin-hybrid.html)
+
+### 目录与入口约定（本仓示例）
+- 插件根: `sse-uniapp-demo/uni_modules/sse-plugin/utssdk/`
+  - Android 代码: `app-android/`
+    - UTS 入口: [index.uts](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/index.uts)
+  - iOS 代码: `app-ios/`
+    - UTS 入口: [index.uts](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/index.uts)
+    - Swift 混编示例: [SSEFramework.swift](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/SSEFramework.swift)
+    - 第三方 Framework 存放: `Frameworks/`（如需，示例已存在）
+
+### 包名/命名空间规范
+- **Android Kotlin/Java**:
+  - 优先使用插件默认包名：`uts.sdk.modules.<插件目录名驼峰>`。
+    - 本插件建议：`package uts.sdk.modules.ssePlugin`
+  - 若包名与默认不一致，在 `uts` 中需显式 `import`：
+    - `import { ClassName } from 'your.custom.package'`
+- **iOS Swift**:
+  - 放置于 `utssdk/app-ios/`，按 Swift 命名空间常规组织。
+- **禁止使用的文件名**: 原生混编文件不能命名为 `index.kt`/`index.java`/`index.swift`（`index` 为保留入口名）。
+
+### 互调与调用要点
+- **UTS → 原生（同语言直接互调）**:
+  - UTS 编译为 Kotlin/Swift/ArkTS，调用原生代码无序列化开销。
+  - 默认包名匹配时可直接用；不匹配需 `import` 指定包名。
+- **原生 → UTS 内置对象（Android 示例）**:
+  - 可使用 `io.dcloud.uts` 基础库：如 `UTSAndroid`、`console`、`setInterval`、`clearInterval` 等。
+- **uvue ↔ uts 插件**:
+  - 常规方式从页面调用插件导出 API（参照各自 `index.uts`）。
+
+### 条件编译（强制）
+- 将平台特定代码包裹在条件编译块，避免跨平台编译错误：
+
+```uts
+// #ifdef APP-ANDROID
+export function fooAndroid() {
+  // 调用 Android 混编能力
+}
+// #endif
+
+// #ifdef APP-IOS
+export function fooIOS() {
+  // 调用 iOS 混编能力
+}
+// #endif
+```
+
+### ArkTS/ETS 与 UTS/JS 混编限制
+- `ets` 不能直接引用 `uts`；需要通过中转 `js` 文件桥接：
+
+```js
+// deps.js
+export const utsExports = {}
+```
+
+```uts
+// index.uts
+import { utsExports } from './deps.js'
+function hello() { return 'hello from uts' }
+utsExports.hello = hello
+```
+
+```ts
+// mem.ets
+import { utsExports } from './deps.js'
+export function getAppVMMemoryInfo() {
+  console.log(utsExports.hello())
+}
+```
+
+- Web/小程序平台：`uts` 与 `js` 可互相引用（类 TS/JS 混编）。
+
+### Java 与自定义基座提示
+- 真机联调：Kotlin/Swift/ArkTS 可直接运行；Java 代码仍需打自定义基座后生效。
+- 原生体量大或需 IDE 能力时，建议在原生 IDE（Android Studio/Xcode）开发后放入 `utssdk` 联调。
+
+### iOS 第三方 Framework 集成
+- 将 `.framework` 放入 `utssdk/app-ios/Frameworks/`，确保随插件打包。
+  - 本仓示例已提供 `Frameworks/` 目录，可参考其中的 `Info.plist` 等结构。
+
+### 开发检查清单（务必满足）
+- [ ] HBuilderX 版本 ≥ 4.25
+- [ ] 原生混编文件未使用 `index.*` 命名
+- [ ] Android 包名与插件默认包名一致，或已在 `uts` 中正确 `import`
+- [ ] 平台相关导出 API 已使用条件编译保护（`APP-ANDROID` / `APP-IOS` 等）
+- [ ] 若涉及 `ets` ↔ `uts` 互调，已通过 `js` 进行中转
+- [ ] iOS 第三方库已放入 `Frameworks/` 且结构完整
+- [ ] 在 HBuilderX 真机运行中可通过 `console.log` 观察原生日志
+
+### 相关仓内引用（快捷跳转）
+- Android 入口: [app-android/index.uts](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/index.uts)
+- iOS 入口: [app-ios/index.uts](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/index.uts)
+- iOS Swift 示例: [SSEFramework.swift](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/SSEFramework.swift)
+- iOS Frameworks（如需）: [Frameworks/](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/Frameworks)
+
+> 补充建议：配合工作区可请求规则 `05-uts-ios` 与 `07-uts-language` 使用，以获取 iOS 平台要点与 UTS 语言细则。

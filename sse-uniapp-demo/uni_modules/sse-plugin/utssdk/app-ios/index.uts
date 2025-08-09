@@ -20,7 +20,7 @@ import { createSSEError } from '../unierror.uts';
  * 引入 SSEFramework
  * Framework 位于 ./Frameworks 目录下
  */
-import { SSEManager, SSEManagerDelegate } from 'SSEFramework';
+//import { SSEManager, SSEManagerDelegate } from 'SSEFramework';
 
 // 全局 SSE 管理器实例
 let sseManager : SSEManager | null = null;
@@ -31,9 +31,16 @@ let currentListeners : SSEEventListenerOptions | null = null;
 // 初始化 SSE 管理器
 function getSSEManager() : SSEManager {
 	if (sseManager == null) {
+		console.log("[SSE DEBUG] Creating new SSEManager instance");
 		const manager = new SSEManager();
-		manager.delegate = new SSEDelegateHandler();
+		console.log("[SSE DEBUG] SSEManager created successfully");
+		const delegate = new SSEDelegateHandler();
+		manager.delegate = delegate;
+		console.log("[SSE DEBUG] SSEDelegateHandler set successfully");
+		console.log("[SSE DEBUG] Delegate object type:", typeof delegate);
+		console.log("[SSE DEBUG] Manager delegate after set:", manager.delegate != null ? "not null" : "null");
 		sseManager = manager;
+		console.log("[SSE DEBUG] SSEManager stored globally");
 	}
 	return sseManager as SSEManager;
 }
@@ -41,62 +48,129 @@ function getSSEManager() : SSEManager {
 
 // SSE 代理处理器，实现 SSEManagerDelegate 协议
 class SSEDelegateHandler implements SSEManagerDelegate {
+	constructor() {
+		console.log("[SSE DEBUG] SSEDelegateHandler constructor called");
+	}
 
 	// 接收到消息
 	sseManagerMessage(manager: SSEManager, message: string, requestId: string) {
-    console.log("msg",message)
-      if (currentRequestId == requestId) {
+    console.log("[SSE DEBUG] sseManagerMessage called:", {
+      message: message,
+      requestId: requestId,
+      currentRequestId: currentRequestId,
+      hasListeners: currentListeners != null,
+      hasOnMessage: currentListeners?.onMessage != null
+    });
+    
+      // 修改匹配逻辑：如果没有当前requestId或者requestId匹配，或者监听器的requestId为null，都处理消息
+      const listenerRequestId = currentListeners?.requestId;
+      if (currentRequestId == null || currentRequestId == requestId || listenerRequestId == null) {
+        console.log("[SSE DEBUG] requestId matches or no current requestId, calling onMessage callback");
         const onMessage = currentListeners?.onMessage;
         if (onMessage != null) {
           const event: SSEMessageEvent = {
             requestId: requestId,
             message: message
           };
+          console.log("[SSE DEBUG] Calling onMessage with event:", event);
           onMessage(event);
+        } else {
+          console.log("[SSE DEBUG] onMessage callback is null");
         }
+      } else {
+        console.log("[SSE DEBUG] requestId mismatch - current:", currentRequestId, "received:", requestId, "listener:", listenerRequestId);
       }
 	}
 
 	// 连接打开
 	sseManagerOpen(manager: SSEManager, requestId: string) {
-      if (currentRequestId == requestId) {
+    console.log("[SSE DEBUG] sseManagerOpen called:", {
+      requestId: requestId,
+      currentRequestId: currentRequestId,
+      hasListeners: currentListeners != null,
+      hasOnOpen: currentListeners?.onOpen != null
+    });
+    
+      // 修改匹配逻辑：如果没有当前requestId或者requestId匹配，或者监听器的requestId为null，都处理连接打开事件
+      const listenerRequestId = currentListeners?.requestId;
+      if (currentRequestId == null || currentRequestId == requestId || listenerRequestId == null) {
+        console.log("[SSE DEBUG] requestId matches or no current requestId, calling onOpen callback");
         const onOpen = currentListeners?.onOpen;
         if (onOpen != null) {
           const event: SSEConnectResult = {
             requestId: requestId,
             message: "Connection opened"
           };
+          console.log("[SSE DEBUG] Calling onOpen with event:", event);
           onOpen(event);
+        } else {
+          console.log("[SSE DEBUG] onOpen callback is null");
         }
+      } else {
+        console.log("[SSE DEBUG] requestId mismatch - current:", currentRequestId, "received:", requestId, "listener:", listenerRequestId);
       }
 	}
 
 	// 连接错误
 	sseManagerError(manager: SSEManager, errorMessage: string, requestId: string) {
-      if (currentRequestId == requestId) {
+    console.log("[SSE DEBUG] sseManagerError called:", {
+      errorMessage: errorMessage,
+      requestId: requestId,
+      currentRequestId: currentRequestId,
+      hasListeners: currentListeners != null,
+      hasOnError: currentListeners?.onError != null
+    });
+    
+      // 修改匹配逻辑：如果没有当前requestId或者requestId匹配，或者监听器的requestId为null，都处理错误事件
+      const listenerRequestId = currentListeners?.requestId;
+      if (currentRequestId == null || currentRequestId == requestId || listenerRequestId == null) {
+        console.log("[SSE DEBUG] requestId matches or no current requestId, calling onError callback");
         const onError = currentListeners?.onError;
         if (onError != null) {
           const event: SSEErrorEvent = {
             requestId: requestId,
             error: errorMessage
           };
+          console.log("[SSE DEBUG] Calling onError with event:", event);
           onError(event);
+        } else {
+          console.log("[SSE DEBUG] onError callback is null");
         }
+      } else {
+        console.log("[SSE DEBUG] requestId mismatch - current:", currentRequestId, "received:", requestId, "listener:", listenerRequestId);
       }
 	}
 
 	// 连接关闭
 	sseManagerClose(manager: SSEManager, requestId: string) {
-      if (currentRequestId == requestId) {
+    console.log("[SSE DEBUG] sseManagerClose called:", {
+      requestId: requestId,
+      currentRequestId: currentRequestId,
+      hasListeners: currentListeners != null,
+      hasOnClose: currentListeners?.onClose != null
+    });
+    
+      // 修改匹配逻辑：如果没有当前requestId或者requestId匹配，或者监听器的requestId为null，都处理关闭事件
+      const listenerRequestId = currentListeners?.requestId;
+      if (currentRequestId == null || currentRequestId == requestId || listenerRequestId == null) {
+        console.log("[SSE DEBUG] requestId matches or no current requestId, calling onClose callback");
         const onClose = currentListeners?.onClose;
         if (onClose != null) {
           const event: SSECloseEvent = {
             requestId: requestId
           };
+          console.log("[SSE DEBUG] Calling onClose with event:", event);
           onClose(event);
+        } else {
+          console.log("[SSE DEBUG] onClose callback is null");
         }
         // 当前连接已关闭
-        currentRequestId = null;
+        if (currentRequestId == requestId) {
+          currentRequestId = null;
+          console.log("[SSE DEBUG] Cleared currentRequestId");
+        }
+      } else {
+        console.log("[SSE DEBUG] requestId mismatch - current:", currentRequestId, "received:", requestId, "listener:", listenerRequestId);
       }
 	}
 }
@@ -110,19 +184,35 @@ export const sseConnectApi : SSEConnectApi = function (options : SSEConnectOptio
 		const manager = getSSEManager();
     const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
 
+    console.log("[SSE DEBUG] sseConnectApi called:", {
+      url: options.url,
+      requestId: requestId,
+      hasListeners: currentListeners != null,
+      currentRequestId: currentRequestId
+    });
+
     // 单连接：如已存在连接则先关闭
     if (currentRequestId != null) {
+      console.log("[SSE DEBUG] Closing existing connection:", currentRequestId);
       try {
         manager.cancelConnection(currentRequestId as string);
       } catch (e) {
-        // ignore
+        console.log("[SSE DEBUG] Error closing existing connection:", e);
       }
     }
 
     currentRequestId = requestId;
+    console.log("[SSE DEBUG] Set currentRequestId to:", currentRequestId);
+
+    // 如果已有监听器，更新监听器的 requestId
+    if (currentListeners != null) {
+      console.log("[SSE DEBUG] Updating listeners requestId to:", requestId);
+      currentListeners.requestId = requestId;
+    }
 
 		// 调用 SSEFramework 的 startConnection 方法
 		const headers = options.headers != null ? options.headers : {};
+		console.log("[SSE DEBUG] Starting connection with headers:", headers);
 		manager.startConnection(options.url, headers, requestId);
 
 		const result : SSEConnectResult = {
@@ -130,10 +220,12 @@ export const sseConnectApi : SSEConnectApi = function (options : SSEConnectOptio
 			message: "Connection started"
 		};
 
+		console.log("[SSE DEBUG] Connection started, calling success callback");
 		options.success?.(result);
 		options.complete?.(result);
 
 	} catch (error) {
+		console.log("[SSE DEBUG] Error in sseConnectApi:", error);
 		const failError = createSSEError(9020001, "Failed to start SSE connection");
 		options.fail?.(failError);
 		options.complete?.(failError);
@@ -164,18 +256,43 @@ export const sseCloseApi : SSECloseApi = function (requestId : string) {
  */
 @UTSJS.keepAlive
 export function sseAddEventListenerApi(options : SSEEventListenerOptions) : void {
+  console.log("[SSE DEBUG] sseAddEventListenerApi called:", {
+    options: options,
+    currentListeners: currentListeners,
+    currentRequestId: currentRequestId
+  });
+  
+  // 确保requestId一致
+  const finalOptions : SSEEventListenerOptions = {
+    requestId: options.requestId != null ? options.requestId : currentRequestId,
+    onMessage: options.onMessage,
+    onError: options.onError,
+    onClose: options.onClose,
+    onOpen: options.onOpen
+  };
+  
   if (currentListeners == null) {
-    currentListeners = options;
+    console.log("[SSE DEBUG] Setting new listeners");
+    currentListeners = finalOptions;
   } else {
+    console.log("[SSE DEBUG] Merging with existing listeners");
     const merged : SSEEventListenerOptions = {
-      requestId: options.requestId != null ? options.requestId : currentListeners.requestId,
-      onMessage: options.onMessage != null ? options.onMessage : currentListeners.onMessage,
-      onError: options.onError != null ? options.onError : currentListeners.onError,
-      onClose: options.onClose != null ? options.onClose : currentListeners.onClose,
-      onOpen: options.onOpen != null ? options.onOpen : currentListeners.onOpen
+      requestId: finalOptions.requestId != null ? finalOptions.requestId : currentListeners.requestId,
+      onMessage: finalOptions.onMessage != null ? finalOptions.onMessage : currentListeners.onMessage,
+      onError: finalOptions.onError != null ? finalOptions.onError : currentListeners.onError,
+      onClose: finalOptions.onClose != null ? finalOptions.onClose : currentListeners.onClose,
+      onOpen: finalOptions.onOpen != null ? finalOptions.onOpen : currentListeners.onOpen
     };
     currentListeners = merged;
   }
+  
+  console.log("[SSE DEBUG] Final listeners set:", {
+    requestId: currentListeners?.requestId,
+    hasOnMessage: currentListeners?.onMessage != null,
+    hasOnOpen: currentListeners?.onOpen != null,
+    hasOnError: currentListeners?.onError != null,
+    hasOnClose: currentListeners?.onClose != null
+  });
 }
 
 /**

@@ -76,6 +76,7 @@
 		},
 		onLoad() {
 			// 设置 SSE 事件监听器
+			console.log("[UniApp DEBUG] Page onLoad - setting up SSE event listeners");
 			this.setupSSEEventListeners();
 		},
 		onUnload() {
@@ -84,23 +85,28 @@
 		},
 		methods: {
 			setupSSEEventListeners() {
+				console.log("[UniApp DEBUG] setupSSEEventListeners called");
 				sseAddEventListenerApi({
 					onMessage: (event) => {
+						console.log("[UniApp DEBUG] onMessage callback called:", event);
 						this.addMessage(event.message);
 						console.log('SSE Message:', event);
 					},
 					onOpen: (event) => {
+						console.log("[UniApp DEBUG] onOpen callback called:", event);
 						this.isConnected = true;
 						this.connectionStatus = `连接成功: ${event.requestId}`;
 						this.resultMessage = `SSE 连接已建立 - ${event.requestId}`;
 						console.log('SSE Open:', event);
 					},
 					onError: (event) => {
+						console.log("[UniApp DEBUG] onError callback called:", event);
 						this.connectionStatus = `连接错误: ${event.error}`;
 						this.resultMessage = `SSE 连接错误: ${event.error}`;
 						console.error('SSE Error:', event);
 					},
 					onClose: (event) => {
+						console.log("[UniApp DEBUG] onClose callback called:", event);
 						this.isConnected = false;
 						this.connectionStatus = `连接已关闭: ${event.requestId}`;
 						this.resultMessage = `SSE 连接已关闭`;
@@ -115,26 +121,32 @@
 					return;
 				}
 				
+				console.log("[UniApp DEBUG] onConnectSSE called");
 				this.resultMessage = '正在连接 SSE...';
 				this.connectionStatus = '连接中...';
 				
+				const requestId = `sse_${Date.now()}`;
+				console.log("[UniApp DEBUG] Using requestId:", requestId);
+				
 				sseConnectApi({
 					url: this.serverUrl,
-					requestId: `sse_${Date.now()}`,
+					requestId: requestId,
 					headers: {
 						'User-Agent': 'UniApp-X-SSE-Plugin'
 					},
 					success: (res) => {
+						console.log("[UniApp DEBUG] SSE Connect Success:", res);
 						this.currentRequestId = res.requestId;
-						console.log('SSE Connect Success:', res);
+						console.log("[UniApp DEBUG] Set currentRequestId to:", this.currentRequestId);
 					},
 					fail: (error) => {
+						console.log("[UniApp DEBUG] SSE Connect Fail:", error);
 						this.resultMessage = `连接失败: ${JSON.stringify(error)}`;
 						this.connectionStatus = '连接失败';
 						console.error('SSE Connect Error:', error);
 					},
 					complete: (res) => {
-						console.log('SSE Connect Complete:', res);
+						console.log("[UniApp DEBUG] SSE Connect Complete:", res);
 					}
 				});
 			},
@@ -172,7 +184,6 @@
 </script>
 
 <style>
-    @import "@/styles/uvue-fixes.css";
 	.container {
 		background: #f5f5f5;
 		padding: 40rpx 0;
@@ -291,8 +302,6 @@
 		font-size: 26rpx;
 		color: #666666;
 		line-height: 1.5;
-		word-wrap: break-word;
-		overflow-wrap: anywhere;
 	}
 	
 	/* 底部 */
@@ -356,8 +365,6 @@
 		font-size: 26rpx;
 		color: #333333;
 		line-height: 1.4;
-		word-wrap: break-word;
-		overflow-wrap: anywhere;
 	}
 	
 	.no-messages {
@@ -388,7 +395,5 @@
 		font-size: 26rpx;
 		color: #666666;
 		line-height: 1.5;
-		word-wrap: break-word;
-		overflow-wrap: anywhere;
 	}
 </style>
