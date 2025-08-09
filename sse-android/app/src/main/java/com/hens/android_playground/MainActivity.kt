@@ -79,8 +79,8 @@ class SSEManagerHelper {
             }
         }
         
-        override fun onError(error: Exception, requestId: String) {
-            callback?.invoke("❌ 连接错误 (ID: $requestId): ${error.message}", false)
+        override fun onError(error: String, requestId: String) {
+            callback?.invoke("❌ 连接错误 (ID: $requestId): $error", false)
         }
         
         override fun onClose(requestId: String) {

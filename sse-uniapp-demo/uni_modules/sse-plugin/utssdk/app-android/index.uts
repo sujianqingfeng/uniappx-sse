@@ -21,21 +21,47 @@ import { createSSEError } from '../unierror.uts';
 /**
  * 引入 SSEManager 原生库
  */
+// #ifdef APP-ANDROID
 import SSEManager from 'com.hens.sse.library.SSEManager';
+// #endif
 
-// 全局 SSE 管理器实例
+// 全局 SSE 管理器单例
 let sseManager: SSEManager | null = null;
 // 单连接：当前连接的 requestId 与监听器
 let currentRequestId: string | null = null;
 let currentListeners: SSEEventListenerOptions | null = null;
 
-// 初始化 SSE 管理器
+// 获取 SSE 管理器（单例）
 function getSSEManager(): SSEManager {
-  if (!sseManager) {
-    sseManager = new SSEManager();
+  if (sseManager == null) {
+    sseManager = SSEManager.getInstance();
   }
-  return sseManager;
+  return sseManager as SSEManager;
 }
+
+// 直接传递 UTSJSONObject，由 UTS → Kotlin 桥接完成到 Map<String, String>
+
+// Kotlin 回调实现，转发到 UTS 监听器
+class AndroidSSECallback implements SSEManager.SSECallback {
+  onOpen(requestId: string) {
+    const evt: SSEConnectResult = { requestId, message: 'open' };
+    currentListeners?.onOpen?.(evt);
+  }
+  onMessage(message: string, requestId: string) {
+    const evt: SSEMessageEvent = { requestId, message };
+    currentListeners?.onMessage?.(evt);
+  }
+  onError(error: string, requestId: string) {
+    const evt: SSEErrorEvent = { requestId, error };
+    currentListeners?.onError?.(evt);
+  }
+  onClose(requestId: string) {
+    const evt: SSECloseEvent = { requestId };
+    currentListeners?.onClose?.(evt);
+  }
+}
+
+const sseCallback = new AndroidSSECallback();
 
 /**
  * SSE 连接 API
@@ -47,12 +73,13 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
 
     // 单连接：如已存在连接则先断开
     if (currentRequestId != null) {
-      try { manager.disconnect(currentRequestId); } catch (e) { /* ignore */ }
+      try { manager.cancelConnection(currentRequestId); } catch (e) { /* ignore */ }
     }
     currentRequestId = requestId;
 
-    // 调用原生 SSEManager 连接方法
-    manager.connect(options.url, options.headers || {}, requestId);
+    // 调用原生 SSEManager 连接方法（使用系统 API 实现）
+    // 直接传递 UTSJSONObject，由桥接层转换
+    manager.startConnection(options.url, options.headers as any, requestId, sseCallback);
     
     const result: SSEConnectResult = {
       requestId: requestId,
@@ -76,7 +103,7 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
   try {
     const manager = getSSEManager();
     if (manager != null) {
-      manager.disconnect(requestId);
+      manager.cancelConnection(requestId);
       if (currentRequestId == requestId) {
         currentRequestId = null;
       }
@@ -118,7 +145,7 @@ export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (re
 export function closeAllSSEConnections(): void {
   const manager = getSSEManager();
   if (manager) {
-    manager.disconnectAll();
+    manager.cancelAllConnections();
     currentRequestId = null;
     currentListeners = null;
   }

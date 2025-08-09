@@ -1,137 +1,174 @@
 package com.hens.sse.library
 
 import android.util.Log
-import okhttp3.*
-import java.io.IOException
-import java.util.concurrent.TimeUnit
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SSEManager private constructor() {
     private val TAG = "SSEManager"
-    
-    // 使用 ConcurrentHashMap 来存储活动的连接
-    private val connections = ConcurrentHashMap<String, Call>()
-    
-    // OkHttpClient instance
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS) // SSE 是长连接，读取超时设为无限
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-    
+
+    /**
+     * 保存每个活动连接的可取消句柄
+     */
+    private class ConnectionHandle {
+        val isCancelled = AtomicBoolean(false)
+        @Volatile var connection: HttpURLConnection? = null
+        @Volatile var thread: Thread? = null
+    }
+
+    private val connections = ConcurrentHashMap<String, ConnectionHandle>()
+
     companion object {
         @Volatile
         private var INSTANCE: SSEManager? = null
-        
+
         fun getInstance(): SSEManager {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: SSEManager().also { INSTANCE = it }
             }
         }
     }
-    
+
     // 定义回调接口
     interface SSECallback {
         fun onOpen(requestId: String)
         fun onMessage(message: String, requestId: String)
-        fun onError(error: Exception, requestId: String)
+        fun onError(error: String, requestId: String)
         fun onClose(requestId: String)
     }
-    
+
     /**
-     * 开始 SSE 连接
-     * @param url SSE 服务器地址
-     * @param headers 请求头
-     * @param requestId 请求 ID，用于标识和管理连接
-     * @param callback 回调接口
+     * 开始 SSE 连接（使用 HttpURLConnection 实现）
      */
-    fun startConnection(url: String, headers: Map<String, String>?, requestId: String, callback: SSECallback) {
-        // 检查是否已存在相同 requestId 的连接
+    fun startConnection(url: String, headers: Map<String, Any?>?, requestId: String, callback: SSECallback) {
         if (connections.containsKey(requestId)) {
             Log.w(TAG, "已存在 requestId 为 $requestId 的连接")
             return
         }
-        
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .addHeader("Accept", "text/event-stream")
-            .addHeader("Cache-Control", "no-cache")
-            .addHeader("Connection", "keep-alive")
-        
-        // 添加自定义请求头
-        headers?.forEach { (key, value) ->
-            requestBuilder.addHeader(key, value)
-        }
-        
-        val request = requestBuilder.build()
-        val call = client.newCall(request)
-        connections[requestId] = call
-        
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                connections.remove(requestId)
-                callback.onError(e, requestId)
-            }
-            
-            override fun onResponse(call: Call, response: Response) {
-                try {
-                    // 检查 HTTP 响应状态码
-                    if (!response.isSuccessful) {
-                        connections.remove(requestId)
-                        val error = Exception("HTTP ${response.code}")
-                        callback.onError(error, requestId)
-                        return
-                    }
-                    
-                    // 通知连接已打开
-                    callback.onOpen(requestId)
-                    
-                    // 处理响应体
-                    response.body?.let { body ->
-                        try {
-                            var line: String?
-                            while (body.source().readUtf8Line().also { line = it } != null) {
-                                line?.let {
-                                    if (it.startsWith("data:")) {
-                                        val message = it.substring(5).trim()
-                                        callback.onMessage(message, requestId)
-                                    }
-                                    // 可以在这里处理其他 SSE 事件类型，如 event:, id:, retry: 等
+
+        val handle = ConnectionHandle()
+        connections[requestId] = handle
+
+        val worker = Thread {
+            try {
+                val urlObj = URL(url)
+                val conn = (urlObj.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 30_000
+                    readTimeout = 0 // SSE 长连接，读取不超时
+                    setRequestProperty("Accept", "text/event-stream")
+                    setRequestProperty("Cache-Control", "no-cache")
+                    setRequestProperty("Connection", "keep-alive")
+                    // 自定义请求头
+                    headers?.forEach { (k, v) -> setRequestProperty(k, v?.toString() ?: "") }
+                    instanceFollowRedirects = true
+                }
+                handle.connection = conn
+
+                conn.connect()
+
+                val code = conn.responseCode
+                if (code !in 200..299) {
+                    throw Exception("HTTP $code")
+                }
+
+                callback.onOpen(requestId)
+
+                BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
+                    var dataBuffer = StringBuilder()
+                    var eventType: String? = null
+                    var eventIdTmp: String? = null
+
+                    while (!handle.isCancelled.get()) {
+                        val l = reader.readLine() ?: break
+                        if (l.isEmpty()) {
+                            // 事件结束，派发消息
+                            if (dataBuffer.isNotEmpty()) {
+                                val msg = if (dataBuffer.endsWith("\n")) {
+                                    dataBuffer.substring(0, dataBuffer.length - 1)
+                                } else {
+                                    dataBuffer.toString()
                                 }
+                                callback.onMessage(msg, requestId)
+                                dataBuffer = StringBuilder()
+                                eventType = null
+                                eventIdTmp = null
                             }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "读取 SSE 数据时发生错误", e)
-                            callback.onError(e, requestId)
-                        } finally {
-                            connections.remove(requestId)
-                            callback.onClose(requestId)
+                            continue
+                        }
+
+                        if (l.startsWith(":")) {
+                            // 注释/心跳，忽略
+                            continue
+                        }
+
+                        val idx = l.indexOf(':')
+                        val field = if (idx == -1) l else l.substring(0, idx)
+                        var value = if (idx == -1) "" else l.substring(idx + 1)
+                        if (value.startsWith(" ")) value = value.substring(1)
+
+                        when (field) {
+                            "data" -> dataBuffer.append(value).append('\n')
+                            "event" -> eventType = value
+                            "id" -> eventIdTmp = value
+                            "retry" -> {
+                                // 读取并忽略；当前实现不做自动重连
+                            }
+                            else -> {
+                                // 忽略未知字段
+                            }
                         }
                     }
-                } catch (e: Exception) {
-                    connections.remove(requestId)
-                    callback.onError(e, requestId)
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "SSE 连接或读取失败", e)
+                try {
+                    callback.onError(e.message ?: e.toString(), requestId)
+                } catch (_: Exception) { }
+            } finally {
+                try {
+                    handle.connection?.disconnect()
+                } catch (_: Exception) { }
+                connections.remove(requestId)
+                try {
+                    callback.onClose(requestId)
+                } catch (_: Exception) { }
             }
-        })
+        }
+
+        worker.isDaemon = true
+        worker.name = "SSE-$requestId"
+        handle.thread = worker
+        worker.start()
     }
-    
+
     /**
      * 取消指定的 SSE 连接
-     * @param requestId 请求 ID
      */
     fun cancelConnection(requestId: String) {
-        connections[requestId]?.let { call ->
-            call.cancel()
+        connections[requestId]?.let { handle ->
+            handle.isCancelled.set(true)
+            try {
+                handle.connection?.disconnect()
+            } catch (_: Exception) { }
+            try {
+                handle.thread?.interrupt()
+            } catch (_: Exception) { }
             connections.remove(requestId)
         }
     }
-    
+
     /**
      * 取消所有 SSE 连接
      */
     fun cancelAllConnections() {
-        connections.values.forEach { call ->
-            call.cancel()
+        connections.values.forEach { handle ->
+            handle.isCancelled.set(true)
+            try { handle.connection?.disconnect() } catch (_: Exception) { }
+            try { handle.thread?.interrupt() } catch (_: Exception) { }
         }
         connections.clear()
     }
