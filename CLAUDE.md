@@ -99,6 +99,24 @@ Error codes follow Uni-App convention (90xxxx series):
 4. **Interface Updates**: Modify `interface.uts` if API signature changes
 5. **Testing**: Run Uni-App X playground to test integration
 
+## Native Code Guidelines
+
+### Android Library Development
+- **Language**: All Android native code MUST be written in Kotlin (.kt files)
+- **Location**: Android native code should be placed in `sse-android/sse-lib/src/main/java/com/hens/sse/library/`
+- **Build Configuration**: Use Kotlin DSL for build.gradle.kts files
+- **Dependencies**: Include OkHttp for network operations when needed
+- **Threading**: Use coroutines for asynchronous operations
+- **Architecture**: Follow Android architecture best practices with proper separation of concerns
+
+### iOS Framework Development
+- **Language**: All iOS native code MUST be written in Swift (.swift files)
+- **Location**: iOS native code should be placed in `sse-ios-framework/SSEFramework/`
+- **Build Configuration**: Use Xcode project settings for framework configuration
+- **Dependencies**: Use Swift Package Manager or manual framework inclusion
+- **Threading**: Use DispatchQueue for asynchronous operations
+- **Architecture**: Follow iOS architecture best practices with proper separation of concerns
+
 ## File Structure
 
 ```
@@ -120,7 +138,7 @@ sse-uniapp-demo/
 
 sse-android/
 └── sse-lib/
-    └── src/main/java/com/hens/android_lib/
+    └── src/main/java/com/hens/sse/library/
         ├── SayHiLib.kt            # Android native implementation
         └── SSEManager.kt          # SSE Manager implementation
 

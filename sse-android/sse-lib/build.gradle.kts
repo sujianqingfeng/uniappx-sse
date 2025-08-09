@@ -29,11 +29,21 @@ android {
   }
 }
 
+// 设置源代码目录
+android {
+  sourceSets {
+    getByName("main") {
+      java.setSrcDirs(listOf("src/main/java"))
+    }
+  }
+}
+
 dependencies {
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
+  implementation(libs.okhttp)
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.junit)
   androidTestImplementation(libs.androidx.espresso.core)
