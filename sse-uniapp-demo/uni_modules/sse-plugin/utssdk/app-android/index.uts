@@ -112,7 +112,14 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
       }
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : error?.toString() || "Unknown error";
+    let errorMessage: string;
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (error != null) {
+      errorMessage = error.toString();
+    } else {
+      errorMessage = "Unknown error";
+    }
     console.error('Error closing SSE connection:', errorMessage);
   }
 };
@@ -149,10 +156,8 @@ export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (re
  */
 export function closeAllSSEConnections(): void {
   const manager = getSSEManager();
-  if (manager) {
-    manager.cancelAllConnections();
-    currentRequestId = null;
-    currentListeners = null;
-  }
+  manager.cancelAllConnections();
+  currentRequestId = null;
+  currentListeners = null;
 }
 
