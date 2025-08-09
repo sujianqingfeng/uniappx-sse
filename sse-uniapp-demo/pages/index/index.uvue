@@ -1,256 +1,344 @@
 <template>
-	<view class="container">
-		<!-- 头部区域 -->
-		<view class="header">
-			<text class="app-title">UniApp X</text>
-			<text class="app-subtitle">SSE Native Plugin Demo</text>
-		</view>
-		
-		<!-- 主要内容区域 -->
-		<view class="content">
-			<!-- SSE 连接卡片 -->
-			<view class="card">
-				<text class="card-title">SSE 连接测试</text>
-				<text class="card-description">测试 SSE 原生插件功能，连接到服务器并接收实时消息</text>
-				
-				<view class="input-group">
-					<text class="input-label">服务器 URL:</text>
-					<input class="input-field" v-model="serverUrl" placeholder="http://localhost:3000/sse" />
-				</view>
-				
-				<view class="button-group">
-					<view class="btn btn-primary" @click="onConnectSSE" v-if="!isConnected">
-						<text class="btn-text text-strong">连接 SSE</text>
-					</view>
-					<view class="btn btn-danger" @click="onDisconnectSSE" v-else>
-						<text class="btn-text text-strong">断开连接</text>
-					</view>
-					</view>
-			</view>
-			
-			<!-- 消息显示区域 -->
-			<view class="card" v-if="isConnected">
-				<text class="card-title">实时消息</text>
-				<scroll-view class="message-container" scroll-y="true">
-					<view class="message-item" v-for="(msg, index) in messages" :key="index">
-						<text class="message-time">{{ msg.time }}</text>
-						<text class="message-content text-wrap">{{ msg.content }}</text>
-					</view>
-					<text class="no-messages" v-if="messages.length === 0">等待消息...</text>
-				</scroll-view>
-			</view>
-			
-			<!-- 结果显示区域 -->
-			<view class="result-card" v-if="resultMessage">
-				<text class="result-title text-strong">调用结果</text>
-				<text class="result-content text-wrap">{{ resultMessage }}</text>
-			</view>
-			
-			<!-- 状态显示 -->
-			<view class="status-card" v-if="connectionStatus">
-				<text class="status-title text-strong">连接状态</text>
-				<text class="status-content text-wrap">{{ connectionStatus }}</text>
-			</view>
-		</view>
-		
-		<!-- 底部信息 -->
-		<view class="footer">
-			<text class="footer-text">基于 UniApp X 原生插件开发</text>
-		</view>
-	</view>
+  <view class="container" :style="{ height: pageHeight + 'px' }">
+    <!-- 固定头部区域 -->
+    <view class="header">
+      <text class="app-title">SSE 多连接 Demo</text>
+      <text class="app-subtitle">SSE Native Plugin Demo - 多连接</text>
+    </view>
+
+    <!-- 中间可滚动区域（占据 header 与 footer 之间的空间） -->
+    <scroll-view class="page-scroll" scroll-y="true" :style="{ top: headerHeight + 'px', bottom: footerHeight + 'px' }">
+      <view class="content">
+        <!-- 多连接管理卡片 -->
+        <view class="card">
+          <text class="card-title">多连接管理</text>
+          <text class="card-description">为每个 URL 生成独立连接，可分别连接/断开，消息分别显示</text>
+
+          <view class="input-group">
+            <text class="input-label">服务器 URL:</text>
+            <input class="input-field" v-model="serverUrl" placeholder="http://localhost:3000/sse" />
+          </view>
+
+          <view class="button-group">
+            <view class="btn btn-primary" @click="addConnection">
+              <text class="btn-text text-strong">添加连接</text>
+            </view>
+            <view class="btn btn-secondary" @click="connectAll" v-if="connections.length > 0">
+              <text class="btn-text text-strong">全部连接</text>
+            </view>
+            <view class="btn btn-danger" @click="disconnectAll" v-if="connections.length > 0">
+              <text class="btn-text text-strong">全部断开</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 连接列表 -->
+        <view class="card" v-for="item in connections" :key="item.requestId">
+          <text class="card-title">连接 {{ shortId(item.requestId) }}</text>
+          <text class="card-description text-wrap">{{ item.url }}</text>
+
+          <view class="button-group">
+            <view class="btn btn-primary" @click="connectConnection(item.requestId)" v-if="!item.isConnected">
+              <text class="btn-text text-strong">连接</text>
+            </view>
+            <view class="btn btn-danger" @click="disconnectConnection(item.requestId)" v-else>
+              <text class="btn-text text-strong">断开</text>
+            </view>
+            <view class="btn" style="background:#999" @click="removeConnection(item.requestId)">
+              <text class="btn-text text-strong">移除</text>
+            </view>
+          </view>
+
+          <view class="status-card" v-if="item.status">
+            <text class="status-title text-strong">状态</text>
+            <text class="status-content text-wrap">{{ item.status }}</text>
+          </view>
+
+          <text class="card-title" style="margin-top: 5px;">消息</text>
+          <view class="message-container">
+            <view class="message-item" v-for="(msg, index) in item.messages" :key="index">
+              <text class="message-time">{{ msg.time }}</text>
+              <text class="message-content text-wrap">{{ msg.content }}</text>
+            </view>
+            <text class="no-messages" v-if="item.messages.length === 0">等待消息...</text>
+          </view>
+        </view>
+
+        <!-- 结果显示区域 -->
+        <view class="result-card" v-if="resultMessage">
+          <text class="result-title text-strong">提示</text>
+          <text class="result-content text-wrap">{{ resultMessage }}</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 固定底部信息 -->
+    <view class="footer">
+      <text class="footer-text">基于 UniApp X 原生插件开发</text>
+    </view>
+  </view>
 </template>
 
 <script>
-	import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from "@/uni_modules/sse-plugin";
+import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from "@/uni_modules/sse-plugin";
 
-	export default {
-		data() {
-			return {
-				resultMessage: '',
-				serverUrl: 'http://localhost:3000/sse',
-				isConnected: false,
-				messages: [],
-				connectionStatus: '',
-				currentRequestId: ''
-			}
-		},
-		onLoad() {
-			// 设置 SSE 事件监听器
-			console.log("[UniApp DEBUG] Page onLoad - setting up SSE event listeners");
-			this.setupSSEEventListeners();
-		},
-		onUnload() {
-			// 页面卸载时清理连接
-			this.cleanupSSE();
-		},
-		methods: {
-			setupSSEEventListeners() {
-				console.log("[UniApp DEBUG] setupSSEEventListeners called");
-				sseAddEventListenerApi({
-					onMessage: (event) => {
-						console.log("[UniApp DEBUG] onMessage callback called:", event);
-						this.addMessage(event.message);
-						console.log('SSE Message:', event);
-					},
-					onOpen: (event) => {
-						console.log("[UniApp DEBUG] onOpen callback called:", event);
-						this.isConnected = true;
-						this.connectionStatus = `连接成功: ${event.requestId}`;
-						this.resultMessage = `SSE 连接已建立 - ${event.requestId}`;
-						console.log('SSE Open:', event);
-					},
-					onError: (event) => {
-						console.log("[UniApp DEBUG] onError callback called:", event);
-						this.connectionStatus = `连接错误: ${event.error}`;
-						this.resultMessage = `SSE 连接错误: ${event.error}`;
-						console.error('SSE Error:', event);
-					},
-					onClose: (event) => {
-						console.log("[UniApp DEBUG] onClose callback called:", event);
-						this.isConnected = false;
-						this.connectionStatus = `连接已关闭: ${event.requestId}`;
-						this.resultMessage = `SSE 连接已关闭`;
-						console.log('SSE Close:', event);
-					}
-				});
-			},
-			
-			onConnectSSE() {
-				if (!this.serverUrl) {
-					this.resultMessage = '请输入服务器 URL';
-					return;
-				}
-				
-				console.log("[UniApp DEBUG] onConnectSSE called");
-				this.resultMessage = '正在连接 SSE...';
-				this.connectionStatus = '连接中...';
-				
-				const requestId = `sse_${Date.now()}`;
-				console.log("[UniApp DEBUG] Using requestId:", requestId);
-				
-				sseConnectApi({
-					url: this.serverUrl,
-					requestId: requestId,
-					headers: {
-						'User-Agent': 'UniApp-X-SSE-Plugin'
-					},
-					success: (res) => {
-						console.log("[UniApp DEBUG] SSE Connect Success:", res);
-						this.currentRequestId = res.requestId;
-						console.log("[UniApp DEBUG] Set currentRequestId to:", this.currentRequestId);
-					},
-					fail: (error) => {
-						console.log("[UniApp DEBUG] SSE Connect Fail:", error);
-						this.resultMessage = `连接失败: ${JSON.stringify(error)}`;
-						this.connectionStatus = '连接失败';
-						console.error('SSE Connect Error:', error);
-					},
-					complete: (res) => {
-						console.log("[UniApp DEBUG] SSE Connect Complete:", res);
-					}
-				});
-			},
-			
-			onDisconnectSSE() {
-				if (this.currentRequestId) {
-					sseCloseApi(this.currentRequestId);
-					this.currentRequestId = '';
-				}
-			},
-		
-		addMessage(content) {
-				const now = new Date();
-				const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-				
-				this.messages.unshift({
-					time: timeStr,
-					content: content
-				});
-				
-				// 限制消息数量
-				if (this.messages.length > 50) {
-					this.messages = this.messages.slice(0, 50);
-				}
-			},
-			
-			cleanupSSE() {
-				if (this.currentRequestId) {
-					sseCloseApi(this.currentRequestId);
-				}
-				sseRemoveEventListenerApi();
-			}
-		}
-	}
+export default {
+  data() {
+    return {
+      resultMessage: '',
+      serverUrl: 'http://localhost:3000/sse',
+      connections: [], // { requestId, url, isConnected, status, messages: [] }
+      pageHeight: 0,
+      headerHeight: 0,
+      footerHeight: 0
+    }
+  },
+  onLoad() {
+    console.log("[UniApp DEBUG] onLoad - setup global SSE listeners");
+    this.setupSSEEventListeners();
+    this.calcPageHeight();
+  },
+  onReady() {
+    // 渲染完成后测量头部与底部高度，计算中间滚动区域
+    this.measureFixedAreas();
+  },
+  onUnload() {
+    this.cleanupSSE();
+  },
+  methods: {
+    calcPageHeight() {
+      try {
+        const sys = uni.getSystemInfoSync();
+        this.pageHeight = sys.windowHeight; // px
+      } catch (e) {
+        this.pageHeight = 800;
+      }
+    },
+    measureFixedAreas() {
+      try {
+        const query = uni.createSelectorQuery().in(this);
+        query.select('.header').boundingClientRect();
+        query.select('.footer').boundingClientRect();
+        query.exec((res) => {
+          if (Array.isArray(res)) {
+            const headerRect = res[0];
+            const footerRect = res[1];
+            this.headerHeight = headerRect && headerRect.height ? Math.round(headerRect.height) : 60;
+            this.footerHeight = footerRect && footerRect.height ? Math.round(footerRect.height) : 48;
+          } else {
+            this.headerHeight = 60;
+            this.footerHeight = 48;
+          }
+        });
+      } catch (e) {
+        this.headerHeight = 60;
+        this.footerHeight = 48;
+      }
+    },
+    // 生成短 ID 显示
+    shortId(id) {
+      if (!id) return '';
+      return id.length > 8 ? id.slice(0, 4) + '…' + id.slice(-3) : id;
+    },
+
+    // 添加连接
+    addConnection() {
+      if (!this.serverUrl) {
+        this.resultMessage = '请输入服务器 URL';
+        return;
+      }
+      const requestId = `sse_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      this.connections.unshift({
+        requestId,
+        url: this.serverUrl,
+        isConnected: false,
+        status: '待连接',
+        messages: []
+      });
+      this.resultMessage = `已添加连接：${requestId}`;
+    },
+
+    // 连接指定连接
+    connectConnection(requestId) {
+      const idx = this.connections.findIndex(c => c.requestId === requestId);
+      if (idx < 0) return;
+      const conn = this.connections[idx];
+      conn.status = '连接中…';
+      sseConnectApi({
+        url: conn.url,
+        requestId: conn.requestId,
+        headers: { 'User-Agent': 'UniApp-X-SSE-Plugin' },
+        fail: (err) => {
+          conn.status = `连接失败: ${JSON.stringify(err)}`;
+        },
+        complete: () => {}
+      });
+    },
+
+    // 断开指定连接
+    disconnectConnection(requestId) {
+      const idx = this.connections.findIndex(c => c.requestId === requestId);
+      if (idx < 0) return;
+      sseCloseApi(requestId);
+    },
+
+    // 全部连接
+    connectAll() {
+      for (let i = 0; i < this.connections.length; i++) {
+        this.connectConnection(this.connections[i].requestId);
+      }
+    },
+
+    // 全部断开
+    disconnectAll() {
+      for (let i = 0; i < this.connections.length; i++) {
+        sseCloseApi(this.connections[i].requestId);
+      }
+    },
+
+    // 移除连接（如已连接将触发 onClose 回调）
+    removeConnection(requestId) {
+      const idx = this.connections.findIndex(c => c.requestId === requestId);
+      if (idx < 0) return;
+      // 若仍连接，先断开
+      if (this.connections[idx].isConnected) {
+        sseCloseApi(requestId);
+      }
+      this.connections.splice(idx, 1);
+    },
+
+    // 事件监听（全局）
+    setupSSEEventListeners() {
+      sseAddEventListenerApi({
+        onOpen: (event) => {
+          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
+          if (idx < 0) return;
+          this.connections[idx].isConnected = true;
+          this.connections[idx].status = `连接成功: ${event.requestId}`;
+        },
+        onMessage: (event) => {
+          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
+          if (idx < 0) return;
+          this.addMessage(event.requestId, event.message);
+        },
+        onError: (event) => {
+          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
+          if (idx < 0) return;
+          this.connections[idx].status = `错误: ${event.error}`;
+        },
+        onClose: (event) => {
+          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
+          if (idx < 0) return;
+          this.connections[idx].isConnected = false;
+          this.connections[idx].status = `已关闭: ${event.requestId}`;
+        }
+      });
+    },
+
+    addMessage(requestId, content) {
+      const idx = this.connections.findIndex(c => c.requestId === requestId);
+      if (idx < 0) return;
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      this.connections[idx].messages.unshift({ time: timeStr, content });
+      if (this.connections[idx].messages.length > 50) {
+        this.connections[idx].messages = this.connections[idx].messages.slice(0, 50);
+      }
+    },
+
+    cleanupSSE() {
+      this.disconnectAll();
+      sseRemoveEventListenerApi(); // 清理全局监听
+    }
+  }
+}
 </script>
 
 <style>
-	.container {
-		background: #f5f5f5;
-		padding: 40rpx 0;
-	}
+  .container {
+    background: #f5f5f5;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
 	
 	/* 头部区域 */
-	.header {
-		padding: 80rpx 40rpx 60rpx;
-		text-align: center;
-	}
+  .header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 20px 10px;
+    text-align: center;
+    background: #f5f5f5;
+    z-index: 100;
+    border-bottom: 1px solid #eaeaea;
+  }
 	
-	.app-title {
-		font-size: 48rpx;
-		font-weight: bold;
-		color: #333333;
-		margin-bottom: 10rpx;
-	}
+  .app-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333333;
+    margin-bottom: 5px;
+  }
 	
-	.app-subtitle {
-		font-size: 28rpx;
-		color: #666666;
-	}
+  .app-subtitle {
+    font-size: 14px;
+    color: #666666;
+  }
 	
-	/* 内容区域 */
-	.content {
-		padding: 0 40rpx;
-	}
+  /* 内容区域 */
+  .content {
+    padding: 0 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .page-scroll {
+    position: absolute;
+    left: 0;
+    right: 0;
+  }
 	
-	.card {
-		background: #ffffff;
-		border-radius: 16rpx;
-		padding: 50rpx 40rpx;
-		margin-bottom: 30rpx;
-		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
-	}
+  .card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 25px 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  }
 	
-	.card-title {
-		font-size: 36rpx;
-		font-weight: bold;
-		color: #333333;
-		text-align: center;
-		margin-bottom: 20rpx;
-	}
+  .card-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333333;
+    text-align: center;
+    margin-bottom: 10px;
+  }
 	
-	.card-description {
-		font-size: 28rpx;
-		color: #666666;
-		text-align: center;
-		line-height: 1.6;
-		margin-bottom: 50rpx;
-	}
+  .card-description {
+    font-size: 14px;
+    color: #666666;
+    text-align: center;
+    line-height: 1.6;
+    margin-bottom: 25px;
+  }
 	
 	/* 按钮组 */
-	.button-group {
-		display: flex;
-		flex-direction: column;
-	}
+  .button-group {
+    display: flex;
+    flex-direction: column;
+  }
 	
-	.btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 30rpx;
-		border-radius: 12rpx;
-		transition: all 0.2s ease;
-		margin-bottom: 20rpx;
-	}
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    margin-bottom: 10px;
+  }
 	
 	.btn:last-child {
 		margin-bottom: 0;
@@ -275,125 +363,132 @@
 		box-shadow: 0 4rpx 12rpx rgba(255, 59, 48, 0.3);
 	}
 	
-	.btn-text {
-		font-size: 32rpx;
-		font-weight: 700;
-		color: #ffffff;
-	}
+  .btn-text {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffffff;
+  }
 	
 	/* 结果显示 */
-	.result-card {
-		background: #ffffff;
-		border-radius: 16rpx;
-		padding: 30rpx;
-		margin-bottom: 30rpx;
-		border-left: 6rpx solid #007aff;
-		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
-	}
+  .result-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 3px solid #007aff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  }
 	
-	.result-title {
-		font-size: 28rpx;
-		font-weight: 700;
-		color: #333333;
-		margin-bottom: 15rpx;
-	}
+  .result-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333333;
+    margin-bottom: 8px;
+  }
 	
-	.result-content {
-		font-size: 26rpx;
-		color: #666666;
-		line-height: 1.5;
-	}
+  .result-content {
+    font-size: 13px;
+    color: #666666;
+    line-height: 1.5;
+  }
 	
 	/* 底部 */
-	.footer {
-		padding: 40rpx;
-		text-align: center;
-	}
+  .footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 20px;
+    text-align: center;
+    background: #f5f5f5;
+    border-top: 1px solid #eaeaea;
+  }
 	
-	.footer-text {
-		font-size: 24rpx;
-		color: #999999;
-	}
+  .footer-text {
+    font-size: 12px;
+    color: #999999;
+  }
 	
 	/* 输入框样式 */
-	.input-group {
-		margin-bottom: 40rpx;
-	}
+  .input-group {
+    margin-bottom: 20px;
+  }
 	
-	.input-label {
-		font-size: 28rpx;
-		color: #333333;
-		margin-bottom: 15rpx;
-		display: flex;
-	}
+  .input-label {
+    font-size: 14px;
+    color: #333333;
+    margin-bottom: 8px;
+    display: flex;
+  }
 	
-	.input-field {
-		width: 100%;
-		padding: 25rpx;
-		border: 2rpx solid #e0e0e0;
-		border-radius: 8rpx;
-		font-size: 28rpx;
-		background: #ffffff;
-	}
+  .input-field {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-size: 14px;
+    background: #ffffff;
+  }
 	
 	.input-field:focus {
 		border-color: #007aff;
 	}
 	
 	/* 消息显示样式 */
-	.message-container {
-		height: 400rpx;
-	}
+  .message-container {
+    max-height: 200px;
+    overflow: hidden;
+  }
 	
-	.message-item {
-		padding: 20rpx 0;
-		border-bottom: 1rpx solid #f0f0f0;
-	}
+  .message-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
 	
 	.message-item:last-child {
 		border-bottom: none;
 	}
 	
-	.message-time {
-		font-size: 24rpx;
-		color: #999999;
-		margin-bottom: 8rpx;
-		display: flex;
-	}
+  .message-time {
+    font-size: 12px;
+    color: #999999;
+    margin-bottom: 4px;
+    display: flex;
+  }
 	
-	.message-content {
-		font-size: 26rpx;
-		color: #333333;
-		line-height: 1.4;
-	}
+  .message-content {
+    font-size: 13px;
+    color: #333333;
+    line-height: 1.4;
+  }
 	
-	.no-messages {
-		font-size: 26rpx;
-		color: #999999;
-		text-align: center;
-		padding: 40rpx 0;
-	}
+  .no-messages {
+    font-size: 13px;
+    color: #999999;
+    text-align: center;
+    padding: 20px 0;
+  }
 	
 	/* 状态显示样式 */
-	.status-card {
-		background: #ffffff;
-		border-radius: 16rpx;
-		padding: 30rpx;
-		margin-bottom: 30rpx;
-		border-left: 6rpx solid #ff9500;
-		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
-	}
+  .status-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 3px solid #ff9500;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  }
 	
-	.status-title {
-		font-size: 28rpx;
-		font-weight: 700;
-		color: #333333;
-		margin-bottom: 15rpx;
-	}
+  .status-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333333;
+    margin-bottom: 8px;
+  }
 	
-	.status-content {
-		font-size: 26rpx;
-		color: #666666;
-		line-height: 1.5;
-	}
+  .status-content {
+    font-size: 13px;
+    color: #666666;
+    line-height: 1.5;
+  }
 </style>
