@@ -24,8 +24,9 @@ import { SSEManager, SSEManagerDelegate } from 'SSEFramework';
 
 // 全局 SSE 管理器实例
 let sseManager : SSEManager | null = null;
-// 事件监听器映射，支持多个连接
-let eventListenersMap : Map<string, SSEEventListenerOptions> = new Map();
+// 单连接：当前连接的 requestId 与监听器
+let currentRequestId : string | null = null;
+let currentListeners : SSEEventListenerOptions | null = null;
 
 // 初始化 SSE 管理器
 function getSSEManager() : SSEManager {
@@ -43,55 +44,59 @@ class SSEDelegateHandler implements SSEManagerDelegate {
 
 	// 接收到消息
 	sseManagerMessage(manager: SSEManager, message: string, requestId: string) {
-	  const listeners = eventListenersMap.get(requestId);
-	  const onMessage = listeners?.onMessage;
-	  if (onMessage != null) {
-	    const event: SSEMessageEvent = {
-	      requestId: requestId,
-	      message: message
-	    };
-	    onMessage(event);
-	  }
+      if (currentRequestId == requestId) {
+        const onMessage = currentListeners?.onMessage;
+        if (onMessage != null) {
+          const event: SSEMessageEvent = {
+            requestId: requestId,
+            message: message
+          };
+          onMessage(event);
+        }
+      }
 	}
 
 	// 连接打开
 	sseManagerOpen(manager: SSEManager, requestId: string) {
-	  const listeners = eventListenersMap.get(requestId);
-	  const onOpen = listeners?.onOpen;
-	  if (onOpen != null) {
-	    const event: SSEConnectResult = {
-	      requestId: requestId,
-	      message: "Connection opened"
-	    };
-	    onOpen(event);
-	  }
+      if (currentRequestId == requestId) {
+        const onOpen = currentListeners?.onOpen;
+        if (onOpen != null) {
+          const event: SSEConnectResult = {
+            requestId: requestId,
+            message: "Connection opened"
+          };
+          onOpen(event);
+        }
+      }
 	}
 
 	// 连接错误
 	sseManagerError(manager: SSEManager, errorMessage: string, requestId: string) {
-	  const listeners = eventListenersMap.get(requestId);
-	  const onError = listeners?.onError;
-	  if (onError != null) {
-	    const event: SSEErrorEvent = {
-	      requestId: requestId,
-	      error: errorMessage
-	    };
-	    onError(event);
-	  }
+      if (currentRequestId == requestId) {
+        const onError = currentListeners?.onError;
+        if (onError != null) {
+          const event: SSEErrorEvent = {
+            requestId: requestId,
+            error: errorMessage
+          };
+          onError(event);
+        }
+      }
 	}
 
 	// 连接关闭
 	sseManagerClose(manager: SSEManager, requestId: string) {
-	  const listeners = eventListenersMap.get(requestId);
-	  const onClose = listeners?.onClose;
-	  if (onClose != null) {
-	    const event: SSECloseEvent = {
-	      requestId: requestId
-	    };
-	    onClose(event);
-	  }
-	  // 连接关闭后移除监听器
-	  eventListenersMap.delete(requestId);
+      if (currentRequestId == requestId) {
+        const onClose = currentListeners?.onClose;
+        if (onClose != null) {
+          const event: SSECloseEvent = {
+            requestId: requestId
+          };
+          onClose(event);
+        }
+        // 当前连接已关闭
+        currentRequestId = null;
+      }
 	}
 }
 
@@ -102,7 +107,18 @@ class SSEDelegateHandler implements SSEManagerDelegate {
 export const sseConnectApi : SSEConnectApi = function (options : SSEConnectOptions) {
 	try {
 		const manager = getSSEManager();
-		const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
+    const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
+
+    // 单连接：如已存在连接则先关闭
+    if (currentRequestId != null) {
+      try {
+        manager.cancelConnection(currentRequestId as string);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    currentRequestId = requestId;
 
 		// 调用 SSEFramework 的 startConnection 方法
 		const headers = options.headers != null ? options.headers : {};
@@ -131,9 +147,10 @@ export const sseCloseApi : SSECloseApi = function (requestId : string) {
 	try {
 		const manager = getSSEManager();
 		if (manager != null) {
-			manager.cancelConnection(requestId);
-			// 移除对应的监听器
-			eventListenersMap.delete(requestId);
+      manager.cancelConnection(requestId);
+      if (currentRequestId == requestId) {
+        currentRequestId = null;
+      }
 		}
 	} catch (error) {
 		console.error('Error closing SSE connection:', 'Failed to close connection');
@@ -144,35 +161,29 @@ export const sseCloseApi : SSECloseApi = function (requestId : string) {
  * SSE 添加事件监听器 API
  * 为指定连接添加事件监听器
  */
-export const sseAddEventListenerApi : SSEAddEventListenerApi = function (options : SSEEventListenerOptions) {
-	if (options.requestId != null) {
-		const existingListeners = eventListenersMap.get(options.requestId);
-		if (existingListeners == null) {
-			eventListenersMap.set(options.requestId, options);
-		} else {
-				const merged : SSEEventListenerOptions = {
-					requestId: options.requestId != null ? options.requestId : existingListeners.requestId,
-					onMessage: options.onMessage != null ? options.onMessage : existingListeners.onMessage,
-					onError: options.onError != null ? options.onError : existingListeners.onError,
-					onClose: options.onClose != null ? options.onClose : existingListeners.onClose,
-					onOpen: options.onOpen != null ? options.onOpen : existingListeners.onOpen
-				};
-				eventListenersMap.set(options.requestId, merged);
-		}
-	}
-};
+@UTSJS.keepAlive
+export function sseAddEventListenerApi(options : SSEEventListenerOptions) : void {
+  if (currentListeners == null) {
+    currentListeners = options;
+  } else {
+    const merged : SSEEventListenerOptions = {
+      requestId: options.requestId != null ? options.requestId : currentListeners.requestId,
+      onMessage: options.onMessage != null ? options.onMessage : currentListeners.onMessage,
+      onError: options.onError != null ? options.onError : currentListeners.onError,
+      onClose: options.onClose != null ? options.onClose : currentListeners.onClose,
+      onOpen: options.onOpen != null ? options.onOpen : currentListeners.onOpen
+    };
+    currentListeners = merged;
+  }
+}
 
 /**
  * SSE 移除事件监听器 API
  * 移除指定连接的事件监听器
  */
 export const sseRemoveEventListenerApi : SSERemoveEventListenerApi = function (requestId ?: string) {
-	if (requestId != null) {
-		eventListenersMap.delete(requestId);
-	} else {
-		// 清空所有监听器
-		eventListenersMap.clear();
-	}
+  // 单连接：忽略 requestId，直接移除当前监听器
+  currentListeners = null;
 };
 
 /**
@@ -181,7 +192,8 @@ export const sseRemoveEventListenerApi : SSERemoveEventListenerApi = function (r
 export function closeAllSSEConnections() : void {
 	const manager = getSSEManager();
 	if (manager != null) {
-		manager.cancelAllConnections();
-		eventListenersMap.clear();
+    manager.cancelAllConnections();
+    currentRequestId = null;
+    currentListeners = null;
 	}
 }

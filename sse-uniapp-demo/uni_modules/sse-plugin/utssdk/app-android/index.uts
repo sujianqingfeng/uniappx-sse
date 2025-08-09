@@ -25,8 +25,9 @@ import SSEManager from 'com.hens.sse.library.SSEManager';
 
 // 全局 SSE 管理器实例
 let sseManager: SSEManager | null = null;
-// 事件监听器映射
-let eventListenersMap: Map<string, SSEEventListenerOptions> = new Map();
+// 单连接：当前连接的 requestId 与监听器
+let currentRequestId: string | null = null;
+let currentListeners: SSEEventListenerOptions | null = null;
 
 // 初始化 SSE 管理器
 function getSSEManager(): SSEManager {
@@ -43,17 +44,13 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
   try {
     const manager = getSSEManager();
     const requestId = options.requestId || `sse_${Date.now()}`;
-    
-    // 存储事件监听器
-    if (options.onMessage || options.onError || options.onOpen || options.onClose) {
-      eventListenersMap.set(requestId, {
-        onMessage: options.onMessage,
-        onError: options.onError,
-        onOpen: options.onOpen,
-        onClose: options.onClose
-      });
+
+    // 单连接：如已存在连接则先断开
+    if (currentRequestId != null) {
+      try { manager.disconnect(currentRequestId); } catch (e) { /* ignore */ }
     }
-    
+    currentRequestId = requestId;
+
     // 调用原生 SSEManager 连接方法
     manager.connect(options.url, options.headers || {}, requestId);
     
@@ -80,7 +77,9 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
     const manager = getSSEManager();
     if (manager != null) {
       manager.disconnect(requestId);
-      eventListenersMap.delete(requestId);
+      if (currentRequestId == requestId) {
+        currentRequestId = null;
+      }
     }
   } catch (error) {
     console.error('Error closing SSE connection:', (error as any)?.message);
@@ -90,26 +89,27 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
 /**
  * SSE 添加事件监听器 API
  */
-export const sseAddEventListenerApi: SSEAddEventListenerApi = function (options: SSEEventListenerOptions) {
-  if (options.requestId != null) {
-    const existingListeners = eventListenersMap.get(options.requestId);
-    if (existingListeners == null) {
-      eventListenersMap.set(options.requestId, options);
-    } else {
-      eventListenersMap.set(options.requestId, { ...existingListeners, ...options });
-    }
+@UTSJS.keepAlive
+export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
+  if (currentListeners == null) {
+    currentListeners = options;
+  } else {
+    currentListeners = {
+      requestId: options.requestId != null ? options.requestId : currentListeners.requestId,
+      onMessage: options.onMessage != null ? options.onMessage : currentListeners.onMessage,
+      onError: options.onError != null ? options.onError : currentListeners.onError,
+      onClose: options.onClose != null ? options.onClose : currentListeners.onClose,
+      onOpen: options.onOpen != null ? options.onOpen : currentListeners.onOpen
+    };
   }
-};
+}
 
 /**
  * SSE 移除事件监听器 API
  */
 export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
-  if (requestId != null) {
-    eventListenersMap.delete(requestId);
-  } else {
-    eventListenersMap.clear();
-  }
+  // 单连接：忽略 requestId，直接清空当前监听器
+  currentListeners = null;
 };
 
 /**
@@ -119,7 +119,8 @@ export function closeAllSSEConnections(): void {
   const manager = getSSEManager();
   if (manager) {
     manager.disconnectAll();
-    eventListenersMap.clear();
+    currentRequestId = null;
+    currentListeners = null;
   }
 }
 
