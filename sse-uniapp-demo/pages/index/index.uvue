@@ -20,10 +20,10 @@
 				
 				<view class="button-group">
 					<view class="btn btn-primary" @click="onConnectSSE" v-if="!isConnected">
-						<text class="btn-text">连接 SSE</text>
+						<text class="btn-text text-strong">连接 SSE</text>
 					</view>
 					<view class="btn btn-danger" @click="onDisconnectSSE" v-else>
-						<text class="btn-text">断开连接</text>
+						<text class="btn-text text-strong">断开连接</text>
 					</view>
 					</view>
 			</view>
@@ -31,25 +31,25 @@
 			<!-- 消息显示区域 -->
 			<view class="card" v-if="isConnected">
 				<text class="card-title">实时消息</text>
-				<view class="message-container">
+				<scroll-view class="message-container" scroll-y="true">
 					<view class="message-item" v-for="(msg, index) in messages" :key="index">
 						<text class="message-time">{{ msg.time }}</text>
-						<text class="message-content">{{ msg.content }}</text>
+						<text class="message-content text-wrap">{{ msg.content }}</text>
 					</view>
 					<text class="no-messages" v-if="messages.length === 0">等待消息...</text>
-				</view>
+				</scroll-view>
 			</view>
 			
 			<!-- 结果显示区域 -->
 			<view class="result-card" v-if="resultMessage">
-				<text class="result-title">调用结果</text>
-				<text class="result-content">{{ resultMessage }}</text>
+				<text class="result-title text-strong">调用结果</text>
+				<text class="result-content text-wrap">{{ resultMessage }}</text>
 			</view>
 			
 			<!-- 状态显示 -->
 			<view class="status-card" v-if="connectionStatus">
-				<text class="status-title">连接状态</text>
-				<text class="status-content">{{ connectionStatus }}</text>
+				<text class="status-title text-strong">连接状态</text>
+				<text class="status-content text-wrap">{{ connectionStatus }}</text>
 			</view>
 		</view>
 		
@@ -172,8 +172,8 @@
 </script>
 
 <style>
+    @import "@/styles/uvue-fixes.css";
 	.container {
-		min-height: 100vh;
 		background: #f5f5f5;
 		padding: 40rpx 0;
 	}
@@ -266,7 +266,7 @@
 	
 	.btn-text {
 		font-size: 32rpx;
-		font-weight: 600;
+		font-weight: 700;
 		color: #ffffff;
 	}
 	
@@ -282,7 +282,7 @@
 	
 	.result-title {
 		font-size: 28rpx;
-		font-weight: 600;
+		font-weight: 700;
 		color: #333333;
 		margin-bottom: 15rpx;
 	}
@@ -291,7 +291,8 @@
 		font-size: 26rpx;
 		color: #666666;
 		line-height: 1.5;
-		word-break: break-all;
+		word-wrap: break-word;
+		overflow-wrap: anywhere;
 	}
 	
 	/* 底部 */
@@ -314,7 +315,7 @@
 		font-size: 28rpx;
 		color: #333333;
 		margin-bottom: 15rpx;
-		display: block;
+		display: flex;
 	}
 	
 	.input-field {
@@ -328,13 +329,11 @@
 	
 	.input-field:focus {
 		border-color: #007aff;
-		outline: none;
 	}
 	
 	/* 消息显示样式 */
 	.message-container {
-		max-height: 400rpx;
-		overflow-y: auto;
+		height: 400rpx;
 	}
 	
 	.message-item {
@@ -350,14 +349,15 @@
 		font-size: 24rpx;
 		color: #999999;
 		margin-bottom: 8rpx;
-		display: block;
+		display: flex;
 	}
 	
 	.message-content {
 		font-size: 26rpx;
 		color: #333333;
 		line-height: 1.4;
-		word-break: break-all;
+		word-wrap: break-word;
+		overflow-wrap: anywhere;
 	}
 	
 	.no-messages {
@@ -379,7 +379,7 @@
 	
 	.status-title {
 		font-size: 28rpx;
-		font-weight: 600;
+		font-weight: 700;
 		color: #333333;
 		margin-bottom: 15rpx;
 	}
@@ -388,6 +388,7 @@
 		font-size: 26rpx;
 		color: #666666;
 		line-height: 1.5;
-		word-break: break-all;
+		word-wrap: break-word;
+		overflow-wrap: anywhere;
 	}
 </style>
