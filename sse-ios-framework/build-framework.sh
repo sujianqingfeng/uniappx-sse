@@ -46,10 +46,11 @@ show_help() {
     echo "  2. iOS Playground: $IOS_PLAYGROUND_DIR"
     echo ""
     echo "示例:"
-    echo "  $0                      # 构建 Release 通用版本"
-    echo "  $0 -c Debug             # 构建 Debug 通用版本"
+    echo "  $0                      # 构建 Release 模拟器版本（默认）"
+    echo "  $0 -c Debug             # 构建 Debug 模拟器版本"
     echo "  $0 -s                   # 仅构建模拟器版本"
     echo "  $0 -d                   # 仅构建设备版本"
+    echo "  $0 -u                   # 构建通用版本（模拟器+设备）"
     echo "  $0 --clean              # 清理后构建"
     echo ""
 }
@@ -103,7 +104,7 @@ fi
 
 # 设置默认构建类型
 if [ -z "$BUILD_TYPE" ]; then
-    BUILD_TYPE="universal"
+    BUILD_TYPE="simulator"
 fi
 
 echo -e "${BLUE}开始构建 iOS Framework...${NC}"

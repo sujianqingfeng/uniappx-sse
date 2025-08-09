@@ -23,9 +23,25 @@
 		BA990B7A2E423EA600E1A57B /* SSEDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SSEDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		BA3B10662E46C92200CF7CF5 /* Exceptions for "SSEDemo" folder in "Embed Frameworks" phase from "SSEDemo" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			attributesByRelativePath = {
+				SSEFramework.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+			};
+			buildPhase = BA990B982E42454B00E1A57B /* Embed Frameworks */;
+			membershipExceptions = (
+				SSEFramework.framework,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BA990B7C2E423EA600E1A57B /* SSEDemo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BA3B10662E46C92200CF7CF5 /* Exceptions for "SSEDemo" folder in "Embed Frameworks" phase from "SSEDemo" target */,
+			);
 			path = SSEDemo;
 			sourceTree = "<group>";
 		};
