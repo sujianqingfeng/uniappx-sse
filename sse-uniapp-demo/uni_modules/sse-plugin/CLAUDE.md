@@ -123,6 +123,114 @@ export function connect(url: string): Promise<void> {
 - **Network Security**: Configure network security in `config.json`; handle HTTPS and ATS
 - **Function Overloading**: Not supported in uni-app Android environment; use different function names
 
+### Android-Specific Development Guidelines
+
+#### Thread Model and Dispatching
+- **Default Thread**: uni-app x platform executes on `main` thread by default
+- **I/O Operations**: Use `UTSAndroid.getDispatcher("io")` for time-consuming operations
+- **UI Updates**: Must return to `main` thread for any UI operations
+
+```uts
+import UTSAndroid from 'uts.android'
+
+// Execute on I/O thread for time-consuming operations
+UTSAndroid.getDispatcher("io").async((_) => {
+  // Network requests, file operations, etc.
+}, null)
+
+// Return to main thread for UI updates
+UTSAndroid.getDispatcher("main").async((_) => {
+  // Update UI components
+}, null)
+```
+
+#### Type Adaptation (UTS ⇆ Kotlin/Android)
+- **Number vs Int**: Use `Int` explicitly when native API requires it (e.g., `onStartCommand`)
+- **MutableList**: Use `MutableList` for permission callbacks, not `Array`
+- **String[] Arrays**: Use `kotlin.Array` alias for Java String arrays
+- **Void Types**: Kotlin `Unit` corresponds to Java `Void`
+
+```uts
+// Int usage for native API compatibility
+override onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+  return super.onStartCommand(intent, flags, startId)
+}
+
+// MutableList for permission callbacks
+onAppActivityRequestPermissionsResult((requestCode: number,
+  permissions: MutableList<string>, grantResults: MutableList<number>) => {
+  // Handle permission results
+})
+
+// Kotlin Array for Java String arrays
+import KotlinArray from 'kotlin.Array'
+
+class Camera {
+  override onCaptureFinish(result: KotlinArray<string>) {
+    // Process capture results
+  }
+}
+```
+
+#### Native Environment and Resource Configuration
+- **Directory Structure**:
+  - AndroidManifest.xml: `utssdk/app-android/AndroidManifest.xml`
+  - Resources: `utssdk/app-android/res/`
+  - Assets: `utssdk/app-android/assets/`
+  - Local dependencies: `utssdk/app-android/libs/` (AAR/JAR)
+- **Custom Base Required**: Manifest/resources/assets/dependencies typically require custom base to take effect
+- **Resource References**: If `unresolved reference: R` occurs, check `res/` directory and package name consistency
+
+#### Dependency Management
+- **Remote Dependencies**: Declare Gradle coordinates in Android configuration (`implementation`, etc.)
+- **Local Dependencies**: Place `.aar`/`.jar` in `utssdk/app-android/libs/` and enable in configuration
+- **Native Libraries**: Do not place `.so` files directly in plugin directory; wrap in AAR or integrate separately
+
+#### Built-in Android APIs
+```uts
+import UTSAndroid from 'uts.android'
+
+// Get application context and activity
+const appContext = UTSAndroid.getAppContext()
+const activity = UTSAndroid.getUniActivity()!
+
+// Request system permissions
+UTSAndroid.requestSystemPermission(activity,
+  ["android.permission.POST_NOTIFICATIONS"],
+  (granted: boolean) => {
+    // Handle permission grant result
+  }
+)
+```
+
+#### Kotlin vs UTS Differences
+- **Variable Declaration**: `let`/`var` similar to Kotlin but not identical
+- **Null Safety**: Use non-null assertions and nullable calls cautiously; avoid NPE at language boundaries
+- **Constructors**: Keep only one constructor per class; use explicit `super` for parent implementation
+- **Generics**: May be lost at cross-boundary calls; add explicit parsing/assertions when needed
+
+#### Common Issues and Solutions
+- **Vue2 Data Limitation**: Don't define UTS-exported class instances in `data()`
+- **Package Name Keywords**: Escape Kotlin keywords in package names with backticks:
+  ```uts
+  import GetObjectRequest from "com.tencent.cos.xml.model.`object`.GetObjectRequest"
+  ```
+- **Custom XML Views**: Resource XML doesn't support third-party library custom tags (e.g., appcompat); use system controls
+- **Network Request Generics**: Be aware of compatibility issues with `any`/`string` generic mixing (fixed in 4.25)
+
+#### Version and Compilation
+- **SDK Versions**: Use packaging tool and base configuration versions; avoid arbitrary changes to prevent compatibility issues
+
+#### Do / Don't Guidelines
+- **Do**:
+  - Use `UTSAndroid.getDispatcher("io"|"main")` for proper thread switching
+  - Use `Int`/`MutableList`/`kotlin.Array` as required by native APIs
+  - Manage dependencies via Gradle coordinates or `libs/` AAR/JAR; use custom base when necessary
+- **Don't**:
+  - Place `.so` files directly in plugin directory
+  - Hold UTS class instances in `data()`
+  - Operate UI directly on non-main threads
+
 ### iOS (app-ios)
 - **Dependencies**: Place Framework files in `Frameworks/` directory and declare in `config.json`
 - **Info.plist**: Inject required permissions via `config.json` (NSCameraUsageDescription, etc.)
@@ -244,6 +352,11 @@ uni_modules/sse-plugin/
 - [ ] AAR files placed in `libs/` directory
 - [ ] ProGuard rules configured if needed
 - [ ] Network security configuration complete
+- [ ] Proper thread management: use `UTSAndroid.getDispatcher("io"|"main")` for operations
+- [ ] Type adaptation: use `Int`/`MutableList`/`kotlin.Array` as required by native APIs
+- [ ] No UTS class instances defined in Vue2 `data()` method
+- [ ] Package name keywords properly escaped with backticks if needed
+- [ ] Native libraries (.so) wrapped in AAR rather than placed directly
 
 ### iOS-Specific
 - [ ] Info.plist permissions injected via config.json
@@ -273,3 +386,4 @@ uni_modules/sse-plugin/
 - [UTSJSON Object Reference](https://doc.dcloud.net.cn/uni-app-x/uts/buildin-object-api/utsjsonobject.html)
 - [UTS Native Hybrid Development](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin-hybrid.html)
 - [UTS for iOS Development](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-ios.html)
+- [UTS for Android Development](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html)

@@ -43,19 +43,19 @@ function getSSEManager(): SSEManager {
 
 // Kotlin 回调实现，转发到 UTS 监听器
 class AndroidSSECallback implements SSEManager.SSECallback {
-  onOpen(requestId: string) {
+  override onOpen(requestId: string) {
     const evt: SSEConnectResult = { requestId, message: 'open' };
     currentListeners?.onOpen?.(evt);
   }
-  onMessage(message: string, requestId: string) {
+  override onMessage(message: string, requestId: string) {
     const evt: SSEMessageEvent = { requestId, message };
     currentListeners?.onMessage?.(evt);
   }
-  onError(error: string, requestId: string) {
+  override onError(error: string, requestId: string) {
     const evt: SSEErrorEvent = { requestId, error };
     currentListeners?.onError?.(evt);
   }
-  onClose(requestId: string) {
+  override onClose(requestId: string) {
     const evt: SSECloseEvent = { requestId };
     currentListeners?.onClose?.(evt);
   }
@@ -69,17 +69,19 @@ const sseCallback = new AndroidSSECallback();
 export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
   try {
     const manager = getSSEManager();
-    const requestId = options.requestId || `sse_${Date.now()}`;
+    const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
 
     // 单连接：如已存在连接则先断开
     if (currentRequestId != null) {
-      try { manager.cancelConnection(currentRequestId); } catch (e) { /* ignore */ }
+      const currentId: string = currentRequestId!;
+      try { manager.cancelConnection(currentId); } catch (e) { /* ignore */ }
     }
     currentRequestId = requestId;
 
     // 调用原生 SSEManager 连接方法（使用系统 API 实现）
     // 直接传递 UTSJSONObject，由桥接层转换
-    manager.startConnection(options.url, options.headers as any, requestId, sseCallback);
+    const headers = options.headers != null ? options.headers as Map<string, any> : null;
+    manager.startConnection(options.url, headers, requestId, sseCallback);
     
     const result: SSEConnectResult = {
       requestId: requestId,
@@ -90,7 +92,8 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
     options.complete?.(result);
     
   } catch (error) {
-    const failError = createSSEError(9020001, (error as any)?.message || "Failed to start SSE connection");
+    const errorMessage = error instanceof Error ? error.message : "Failed to start SSE connection";
+    const failError = createSSEError(9020001, errorMessage);
     options.fail?.(failError);
     options.complete?.(failError);
   }
@@ -109,7 +112,8 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
       }
     }
   } catch (error) {
-    console.error('Error closing SSE connection:', (error as any)?.message);
+    const errorMessage = error instanceof Error ? error.message : error?.toString() || "Unknown error";
+    console.error('Error closing SSE connection:', errorMessage);
   }
 };
 
@@ -121,12 +125,13 @@ export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
   if (currentListeners == null) {
     currentListeners = options;
   } else {
+    const existingListeners = currentListeners!;
     currentListeners = {
-      requestId: options.requestId != null ? options.requestId : currentListeners.requestId,
-      onMessage: options.onMessage != null ? options.onMessage : currentListeners.onMessage,
-      onError: options.onError != null ? options.onError : currentListeners.onError,
-      onClose: options.onClose != null ? options.onClose : currentListeners.onClose,
-      onOpen: options.onOpen != null ? options.onOpen : currentListeners.onOpen
+      requestId: options.requestId != null ? options.requestId : existingListeners.requestId,
+      onMessage: options.onMessage != null ? options.onMessage : existingListeners.onMessage,
+      onError: options.onError != null ? options.onError : existingListeners.onError,
+      onClose: options.onClose != null ? options.onClose : existingListeners.onClose,
+      onOpen: options.onOpen != null ? options.onOpen : existingListeners.onOpen
     };
   }
 }
