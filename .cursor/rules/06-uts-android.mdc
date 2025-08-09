@@ -1,0 +1,136 @@
+---
+alwaysApply: false
+description: 06-uts-android: UTS for Android 插件开发要点（类型差异、线程调度、Manifest/资源/依赖配置、Kotlin/UTS差异、常见问题）
+---
+
+# UTS for Android 插件开发要点
+
+参考文档： [UTS for Android 文档](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html)
+
+本规则面向在 uni-app x 中开发 Android 侧 UTS 插件的日常实践与踩坑规约，覆盖类型适配、线程模型、清单/资源/依赖配置、常见问题等。与本仓库相关的文件导航：
+
+- Android UTS 入口： [index.uts](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/index.uts)
+- Android 插件配置： [config.json](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/config.json)
+- 跨端接口声明： [interface.uts](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/interface.uts)
+- 本地 AAR 依赖示例： [libs/sse-lib-debug.aar](mdc:sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/libs/sse-lib-debug.aar)
+
+## 线程模型与调度
+
+- uni-app x 平台默认执行在线程：`main`。
+- 进行耗时操作请切至 `io`；涉及界面更新务必切回 `main`。
+
+```ts
+import UTSAndroid from 'uts.android'
+
+UTSAndroid.getDispatcher("io").async((_)=>{
+  // 耗时操作
+}, null)
+
+UTSAndroid.getDispatcher("main").async((_)=>{
+  // UI 更新
+}, null)
+```
+
+## 类型适配要点（UTS ⇆ Kotlin/Android）
+
+- Number 与 Int：原生 API 明确要求 `Int` 的场景需显式使用 `Int`（如 `onStartCommand`）。
+
+```ts
+override onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+  return super.onStartCommand(intent, flags, startId)
+}
+```
+
+- `MutableList`：如权限回调需使用 `MutableList`，不可用 `Array` 代替。
+
+```ts
+onAppActivityRequestPermissionsResult((requestCode: number,
+  permissions: MutableList<string>, grantResults: MutableList<number>) => {
+  // ...
+})
+```
+
+- `String[]`（Java）适配：通过 `kotlin.Array` 起别名后使用。
+
+```ts
+import KotlinArray from 'kotlin.Array'
+
+class Camera {
+  override onCaptureFinish(result: KotlinArray<string>) {
+    // ...
+  }
+}
+```
+
+- `Void` 对应 Kotlin 的 `Unit`：遇到“预期为 Unit”表示期望 `Void`。
+
+## 原生环境与资源/清单配置
+
+- 目录约定（建议）：
+  - 插件清单：`utssdk/app-android/AndroidManifest.xml`
+  - 资源目录：`utssdk/app-android/res/`
+  - 资产目录：`utssdk/app-android/assets/`
+  - 本地依赖：`utssdk/app-android/libs/`（AAR/JAR）
+- 注意：上述清单/资源/资产/依赖配置通常需要“自定义基座”后才能生效。
+- 若出现 `unresolved reference: R`：检查是否存在 `res/`、包名是否一致，并尝试在编辑器打开/保存相关文件以触发资源生成。
+
+## 依赖管理
+
+- 远程依赖：在 Android 侧配置中声明 Gradle 坐标（implementation 等），由打包工具注入。
+- 本地依赖：将 `.aar`/`.jar` 放入 `utssdk/app-android/libs/` 并在配置中启用。
+- 不支持直接在插件目录添加 `.so` 文件；需封装为 AAR 或配合 JAR/so 分别集成。
+
+## 常用内置 API（Android）
+
+```ts
+import UTSAndroid from 'uts.android'
+
+const appContext = UTSAndroid.getAppContext()
+const activity = UTSAndroid.getUniActivity()!
+
+UTSAndroid.requestSystemPermission(activity,
+  ["android.permission.POST_NOTIFICATIONS"],
+  (granted: boolean) => {
+    // 处理授权结果
+  }
+)
+```
+
+## Kotlin 与 UTS 差异（节选）
+
+- `let`/`var` 定义、类继承与 `extends` 写法与 Kotlin 接近但并非完全一致。
+- 非空断言与可空类型调用保持谨慎，跨语言边界避免 NPE。
+- 一个类仅保留一个构造函数；调用父类实现建议显式 `super`。
+- 泛型在跨边界调用时可能丢失，必要时增加显式解析/断言。
+
+## 常见问题与规避
+
+- Vue2 中不支持在 `data()` 内定义 UTS 导出的 class 实例，避免此用法。
+- `Qualified name must be a '.'-separated...`：若包名含 Kotlin 关键字（如 `object`），需使用反引号转义：
+
+```ts
+import GetObjectRequest from "com.tencent.cos.xml.model.`object`.GetObjectRequest"
+```
+
+- 资源 XML 暂不支持三方库自定义控件标签（如 appcompat），优先用系统基础控件。
+- 网络请求若使用 `any`/`string` 泛型混用，注意 4.25 之前的兼容性问题（已在 4.25 修复）。
+
+## 版本与编译
+
+- 编译/目标 SDK 版本以打包工具与基座配置为准；不要随意升降以免引入兼容性问题。
+
+## Do / Don't
+
+- Do：
+  - 用 `UTSAndroid.getDispatcher("io"|"main")` 正确切线程。
+  - 按原生 API 要求显式使用 `Int`/`MutableList`/`kotlin.Array`。
+  - 依赖通过 Gradle 坐标或 `libs/` AAR/JAR；必要时自定义基座。
+- Don't：
+  - 在插件目录直接放置 `.so`。
+  - 在 `data()` 中持有 UTS class 实例。
+  - 在非主线程直接操作 UI。
+
+---
+
+更多细节、示例与限制请参考官方文档： [UTS for Android 文档](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html)
+
