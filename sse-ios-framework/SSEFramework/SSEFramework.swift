@@ -33,7 +33,12 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         super.init()
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = TimeInterval(10)
-        self.session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        self.session = URLSession(configuration: configuration, delegate: self, delegateQueue: OperationQueue())
+    }
+    
+    deinit {
+        cancelAllConnections()
+        session.invalidateAndCancel()
     }
     
     // MARK: - Public Methods
@@ -65,11 +70,13 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
     }
     
     public func cancelConnection(for requestId: String) {
-        connectionsQueue.sync {
-            if let task = tasks[requestId] {
+        connectionsQueue.sync { [weak self] in
+            guard let self = self else { return }
+            if let task = self.tasks[requestId] {
                 task.cancel()
-                tasks.removeValue(forKey: requestId)
-                DispatchQueue.main.async {
+                self.tasks.removeValue(forKey: requestId)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
                     self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
                 }
             }
@@ -77,16 +84,18 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
     }
     
     public func cancelAllConnections() {
-        connectionsQueue.sync {
-            let allRequestIds = Array(tasks.keys)
+        connectionsQueue.sync { [weak self] in
+            guard let self = self else { return }
+            let allRequestIds = Array(self.tasks.keys)
             for requestId in allRequestIds {
-                if let task = tasks[requestId] {
+                if let task = self.tasks[requestId] {
                     task.cancel()
                 }
             }
-            tasks.removeAll()
+            self.tasks.removeAll()
             
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 for requestId in allRequestIds {
                     self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
                 }
@@ -102,7 +111,8 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
         }
         
         if let requestId = dataTask.taskDescription {
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.delegate?.sseManager(self, didOpenWithRequestId: requestId)
             }
         }
@@ -119,7 +129,8 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
             if line.hasPrefix("data:") {
                 let message = String(line.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !message.isEmpty {
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
                         self.delegate?.sseManager(self, didReceiveMessage: message, requestId: requestId)
                     }
                 }
@@ -130,18 +141,21 @@ public class SSEManager: NSObject, URLSessionDataDelegate {
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let requestId = task.taskDescription else { return }
         
-        connectionsQueue.async(flags: .barrier) {
-            self.tasks.removeValue(forKey: requestId)
+        connectionsQueue.async(flags: .barrier) { [weak self] in
+            self?.tasks.removeValue(forKey: requestId)
         }
         
         if let error = error {
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.delegate?.sseManager(self, didFailWithError: error, requestId: requestId)
             }
         } else {
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.delegate?.sseManager(self, didCloseWithRequestId: requestId)
             }
         }
     }
 }
+

@@ -33,7 +33,7 @@
                 "kind": "TypeNominal",
                 "name": "SSEManager",
                 "printedName": "SSEFramework.SSEManager",
-                "usr": "c:@M@SSEFramework@objc(cs)SSEManager"
+                "usr": "s:12SSEFramework10SSEManagerC"
               },
               {
                 "kind": "TypeNominal",
@@ -75,7 +75,7 @@
                 "kind": "TypeNominal",
                 "name": "SSEManager",
                 "printedName": "SSEFramework.SSEManager",
-                "usr": "c:@M@SSEFramework@objc(cs)SSEManager"
+                "usr": "s:12SSEFramework10SSEManagerC"
               },
               {
                 "kind": "TypeNominal",
@@ -111,7 +111,7 @@
                 "kind": "TypeNominal",
                 "name": "SSEManager",
                 "printedName": "SSEFramework.SSEManager",
-                "usr": "c:@M@SSEFramework@objc(cs)SSEManager"
+                "usr": "s:12SSEFramework10SSEManagerC"
               },
               {
                 "kind": "TypeNominal",
@@ -153,7 +153,7 @@
                 "kind": "TypeNominal",
                 "name": "SSEManager",
                 "printedName": "SSEFramework.SSEManager",
-                "usr": "c:@M@SSEFramework@objc(cs)SSEManager"
+                "usr": "s:12SSEFramework10SSEManagerC"
               },
               {
                 "kind": "TypeNominal",
@@ -321,19 +321,14 @@
                 "kind": "TypeNominal",
                 "name": "SSEManager",
                 "printedName": "SSEFramework.SSEManager",
-                "usr": "c:@M@SSEFramework@objc(cs)SSEManager"
+                "usr": "s:12SSEFramework10SSEManagerC"
               }
             ],
             "declKind": "Constructor",
-            "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)init",
+            "usr": "s:12SSEFramework10SSEManagerCACycfc",
             "mangledName": "$s12SSEFramework10SSEManagerCACycfc",
             "moduleName": "SSEFramework",
-            "overriding": true,
-            "objc_name": "init",
             "declAttributes": [
-              "Dynamic",
-              "ObjC",
-              "Override",
               "AccessControl",
               "RawDocComment"
             ],
@@ -415,7 +410,8 @@
             "mangledName": "$s12SSEFramework10SSEManagerC16cancelConnection3forySS_tF",
             "moduleName": "SSEFramework",
             "declAttributes": [
-              "AccessControl"
+              "AccessControl",
+              "RawDocComment"
             ],
             "funcSelfKind": "NonMutating"
           },
@@ -435,171 +431,19 @@
             "mangledName": "$s12SSEFramework10SSEManagerC20cancelAllConnectionsyyF",
             "moduleName": "SSEFramework",
             "declAttributes": [
-              "AccessControl"
-            ],
-            "funcSelfKind": "NonMutating"
-          },
-          {
-            "kind": "Function",
-            "name": "urlSession",
-            "printedName": "urlSession(_:dataTask:didReceive:completionHandler:)",
-            "children": [
-              {
-                "kind": "TypeNominal",
-                "name": "Void",
-                "printedName": "()"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLSession",
-                "printedName": "Foundation.URLSession",
-                "usr": "c:objc(cs)NSURLSession"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLSessionDataTask",
-                "printedName": "Foundation.URLSessionDataTask",
-                "usr": "c:objc(cs)NSURLSessionDataTask"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLResponse",
-                "printedName": "Foundation.URLResponse",
-                "usr": "c:objc(cs)NSURLResponse"
-              },
-              {
-                "kind": "TypeFunc",
-                "name": "Function",
-                "printedName": "(Foundation.URLSession.ResponseDisposition) -> ()",
-                "children": [
-                  {
-                    "kind": "TypeNominal",
-                    "name": "Void",
-                    "printedName": "()"
-                  },
-                  {
-                    "kind": "TypeNominal",
-                    "name": "ResponseDisposition",
-                    "printedName": "Foundation.URLSession.ResponseDisposition",
-                    "usr": "c:@E@NSURLSessionResponseDisposition"
-                  }
-                ]
-              }
-            ],
-            "declKind": "Func",
-            "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)URLSession:dataTask:didReceiveResponse:completionHandler:",
-            "mangledName": "$s12SSEFramework10SSEManagerC10urlSession_8dataTask10didReceive17completionHandlerySo12NSURLSessionC_So0k4DataF0CSo13NSURLResponseCySo0K19ResponseDispositionVctF",
-            "moduleName": "SSEFramework",
-            "objc_name": "URLSession:dataTask:didReceiveResponse:completionHandler:",
-            "declAttributes": [
-              "ObjC",
               "AccessControl",
               "RawDocComment"
-            ],
-            "funcSelfKind": "NonMutating"
-          },
-          {
-            "kind": "Function",
-            "name": "urlSession",
-            "printedName": "urlSession(_:dataTask:didReceive:)",
-            "children": [
-              {
-                "kind": "TypeNominal",
-                "name": "Void",
-                "printedName": "()"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLSession",
-                "printedName": "Foundation.URLSession",
-                "usr": "c:objc(cs)NSURLSession"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLSessionDataTask",
-                "printedName": "Foundation.URLSessionDataTask",
-                "usr": "c:objc(cs)NSURLSessionDataTask"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "Data",
-                "printedName": "Foundation.Data",
-                "usr": "s:10Foundation4DataV"
-              }
-            ],
-            "declKind": "Func",
-            "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)URLSession:dataTask:didReceiveData:",
-            "mangledName": "$s12SSEFramework10SSEManagerC10urlSession_8dataTask10didReceiveySo12NSURLSessionC_So0i4DataF0C10Foundation0J0VtF",
-            "moduleName": "SSEFramework",
-            "objc_name": "URLSession:dataTask:didReceiveData:",
-            "declAttributes": [
-              "ObjC",
-              "AccessControl"
-            ],
-            "funcSelfKind": "NonMutating"
-          },
-          {
-            "kind": "Function",
-            "name": "urlSession",
-            "printedName": "urlSession(_:task:didCompleteWithError:)",
-            "children": [
-              {
-                "kind": "TypeNominal",
-                "name": "Void",
-                "printedName": "()"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLSession",
-                "printedName": "Foundation.URLSession",
-                "usr": "c:objc(cs)NSURLSession"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "URLSessionTask",
-                "printedName": "Foundation.URLSessionTask",
-                "usr": "c:objc(cs)NSURLSessionTask"
-              },
-              {
-                "kind": "TypeNominal",
-                "name": "Optional",
-                "printedName": "(any Swift.Error)?",
-                "children": [
-                  {
-                    "kind": "TypeNominal",
-                    "name": "Error",
-                    "printedName": "any Swift.Error",
-                    "usr": "s:s5ErrorP"
-                  }
-                ],
-                "usr": "s:Sq"
-              }
-            ],
-            "declKind": "Func",
-            "usr": "c:@M@SSEFramework@objc(cs)SSEManager(im)URLSession:task:didCompleteWithError:",
-            "mangledName": "$s12SSEFramework10SSEManagerC10urlSession_4task20didCompleteWithErrorySo12NSURLSessionC_So0J4TaskCs0I0_pSgtF",
-            "moduleName": "SSEFramework",
-            "objc_name": "URLSession:task:didCompleteWithError:",
-            "declAttributes": [
-              "ObjC",
-              "AccessControl"
             ],
             "funcSelfKind": "NonMutating"
           }
         ],
         "declKind": "Class",
-        "usr": "c:@M@SSEFramework@objc(cs)SSEManager",
+        "usr": "s:12SSEFramework10SSEManagerC",
         "mangledName": "$s12SSEFramework10SSEManagerC",
         "moduleName": "SSEFramework",
         "declAttributes": [
           "AccessControl",
-          "RawDocComment",
-          "ObjC"
-        ],
-        "superclassUsr": "c:objc(cs)NSObject",
-        "inheritsConvenienceInitializers": true,
-        "superclassNames": [
-          "ObjectiveC.NSObject"
+          "RawDocComment"
         ],
         "conformances": [
           {
@@ -615,62 +459,6 @@
             "printedName": "Escapable",
             "usr": "s:s9EscapableP",
             "mangledName": "$ss9EscapableP"
-          },
-          {
-            "kind": "Conformance",
-            "name": "Equatable",
-            "printedName": "Equatable",
-            "usr": "s:SQ",
-            "mangledName": "$sSQ"
-          },
-          {
-            "kind": "Conformance",
-            "name": "Hashable",
-            "printedName": "Hashable",
-            "usr": "s:SH",
-            "mangledName": "$sSH"
-          },
-          {
-            "kind": "Conformance",
-            "name": "CVarArg",
-            "printedName": "CVarArg",
-            "usr": "s:s7CVarArgP",
-            "mangledName": "$ss7CVarArgP"
-          },
-          {
-            "kind": "Conformance",
-            "name": "_KeyValueCodingAndObservingPublishing",
-            "printedName": "_KeyValueCodingAndObservingPublishing",
-            "usr": "s:10Foundation37_KeyValueCodingAndObservingPublishingP",
-            "mangledName": "$s10Foundation37_KeyValueCodingAndObservingPublishingP"
-          },
-          {
-            "kind": "Conformance",
-            "name": "_KeyValueCodingAndObserving",
-            "printedName": "_KeyValueCodingAndObserving",
-            "usr": "s:10Foundation27_KeyValueCodingAndObservingP",
-            "mangledName": "$s10Foundation27_KeyValueCodingAndObservingP"
-          },
-          {
-            "kind": "Conformance",
-            "name": "CustomStringConvertible",
-            "printedName": "CustomStringConvertible",
-            "usr": "s:s23CustomStringConvertibleP",
-            "mangledName": "$ss23CustomStringConvertibleP"
-          },
-          {
-            "kind": "Conformance",
-            "name": "CustomDebugStringConvertible",
-            "printedName": "CustomDebugStringConvertible",
-            "usr": "s:s28CustomDebugStringConvertibleP",
-            "mangledName": "$ss28CustomDebugStringConvertibleP"
-          },
-          {
-            "kind": "Conformance",
-            "name": "Sendable",
-            "printedName": "Sendable",
-            "usr": "s:s8SendableP",
-            "mangledName": "$ss8SendableP"
           }
         ]
       }
@@ -681,21 +469,21 @@
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "Dictionary",
-      "offset": 890,
+      "offset": 1346,
       "length": 3,
       "value": "[]"
     },
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "StringLiteral",
-      "offset": 950,
+      "offset": 1704,
       "length": 36,
       "value": "\"com.sseframework.connections.queue\""
     },
     {
       "filePath": "\/Users\/hens\/code-space\/uniapp-navtive-plugin-sse\/sse-ios-framework\/SSEFramework\/SSEFramework.swift",
       "kind": "Dictionary",
-      "offset": 1513,
+      "offset": 2104,
       "length": 3,
       "value": "[]"
     }
