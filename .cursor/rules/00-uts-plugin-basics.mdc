@@ -1,0 +1,47 @@
+---
+globs: *.uts
+alwaysApply: false
+---
+## UTS 与 UTS 插件：核心规则
+
+- **语言与编译目标**: UTS 采用接近 TypeScript 的强类型语法，编译到不同平台：Web→JavaScript，Android→Kotlin，iOS→Swift，HarmonyOS→ArkTS。
+- **插件适用范围**: 一个 UTS 插件可同时被 uni-app（JS 调 UTS）与 uni-app x（UTS 调 UTS）使用。
+- **插件类型**: 分为 API 插件（在 script 中调用）与 组件插件（在 template 中使用）。
+- **统一声明**: 使用 `interface.uts` 定义导出 API 形状；使用 `unierror.uts` 统一错误码与错误对象。
+- **跨端目录**: 可按平台分目录（如 `app-android`、`app-ios`、`web`、`mp-*`），非 App 端也可写 JS（web、各小程序端）。
+- **导入约束**: 仅允许从插件目录内部 `import`，禁止引入插件目录之外的文件。
+- **导出与装饰器限制**:
+  - 优先命名导出：`export function ...`、`export class ...`、`export type ...`。
+  - 装饰器当前不支持 `export const fn = () => {}` 这种导出形式，改用 `export function fn(){}`。
+- **回调与保活**:
+  - 函数名以 `on` 开头且仅有 1 个 callback 参数，可多次触发回调。
+  - 其他场景需持续触发回调时，使用 `@UTSJS.keepAlive`（两端都需加：Android/iOS）。
+  - 加了 `@UTSJS.keepAlive` 后所有回调参数会被长期持有，避免频繁调用导致内存压力。
+- **函数重载限制（uni-app 的 Android 环境）**: 不支持按参数个数/类型区分的重载。请通过不同函数名区分。
+
+示例（回调保活）：
+
+```uts
+export type Options = {
+  a: string
+  success: (res: string) => void
+}
+
+// 以 on 开头，且仅 1 个 callback 参数，可多次回调
+export function onMessage(callback: (msg: string) => void) {
+  callback("a")
+  callback("b")
+}
+
+// 使用装饰器方式保活（不限参数个数/形态）
+@UTSJS.keepAlive
+export function subscribe(option: Options) {
+  option.success("a")
+  option.success("b")
+}
+```
+
+参考文档：
+- [UTS 插件（官方）](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html)
+- [UTS 语言与平台说明（官方）](https://doc.dcloud.net.cn/uni-app-x/uts/)
+

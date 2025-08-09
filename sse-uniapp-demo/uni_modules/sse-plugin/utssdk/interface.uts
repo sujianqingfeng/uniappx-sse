@@ -4,37 +4,108 @@
  */
 
 /**
- * myApi 异步函数的参数，在type里定义函数需要的参数以及api成功、失败的相关回调函数。
+ * SSE 连接选项
  */
-export type SayHiApiOptions = {
-  say : string
-  success ?: (res : SayHiApiResult) => void
-  fail ?: (res : SayHiApiFail) => void
+export type SSEConnectOptions = {
+  url : string
+  headers ?: Record<string, string>
+  requestId ?: string
+  success ?: (res : SSEConnectResult) => void
+  fail ?: (res : SSEApiFail) => void
   complete ?: (res : any) => void
 }
 
 /**
- * 函数返回结果
- * 可以是void, 基本数据类型，自定义type, 或者其他类型。
- * [可选实现]
+ * SSE 连接结果
  */
-export type SayHiApiResult = {
-  result : string
+export type SSEConnectResult = {
+  requestId : string
+  message : string
 }
 
 /**
- * 错误码
- * 根据uni错误码规范要求，建议错误码以90开头，以下是错误码示例：
- * - 9010001 错误信息1
- * - 9010002 错误信息2
+ * SSE 消息事件
  */
-export type SayHiApiErrorCode = 9010001 | 9010002;
+export type SSEMessageEvent = {
+  requestId : string
+  message : string
+}
+
 /**
- * myApi 的错误回调参数
+ * SSE 错误事件
  */
-export interface SayHiApiFail extends IUniError {
-  errCode : SayHiApiErrorCode
+export type SSEErrorEvent = {
+  requestId : string
+  error : string
+}
+
+/**
+ * SSE 关闭事件
+ */
+export type SSECloseEvent = {
+  requestId : string
+}
+
+/**
+ * SSE 事件监听器选项
+ */
+export type SSEEventListenerOptions = {
+  requestId ?: string,
+  onMessage ?: (event : SSEMessageEvent) => void,
+  onError ?: (event : SSEErrorEvent) => void,
+  onClose ?: (event : SSECloseEvent) => void,
+  onOpen ?: (event : SSEConnectResult) => void
+}
+
+
+/**
+ * SSE 错误码
+ */
+export type SSEApiErrorCode = 9020001 | 9020002 | 9020003;
+
+/**
+ * SSE API 错误回调参数
+ */
+export interface SSEApiFail extends IUniError {
+  errCode : SSEApiErrorCode
 };
 
-/* 异步函数定义 */
-export type SayHiApi = (options : SayHiApiOptions) => void
+
+/* SSE 异步函数定义 */
+export type SSEConnectApi = (options : SSEConnectOptions) => void
+export type SSECloseApi = (requestId : string) => void
+export type SSEAddEventListenerApi = (options : SSEEventListenerOptions) => void
+export type SSERemoveEventListenerApi = (requestId ?: string) => void
+
+
+/**
+ * SSE 连接 API
+ */
+export declare const sseConnectApi: SSEConnectApi;
+
+/**
+ * SSE 关闭连接 API
+ */
+export declare const sseCloseApi: SSECloseApi;
+
+/**
+ * SSE 添加事件监听器 API
+ */
+export declare const sseAddEventListenerApi: SSEAddEventListenerApi;
+
+/**
+ * SSE 移除事件监听器 API
+ */
+export declare const sseRemoveEventListenerApi: SSERemoveEventListenerApi;
+
+/**
+ * 关闭所有 SSE 连接
+ */
+export declare const closeAllSSEConnections: () => void;
+
+/**
+ * 创建 SSE 错误对象
+ * 从 unierror.uts 导入
+ */
+export declare const createSSEError: (code: SSEApiErrorCode, message?: string) => SSEApiFail;
+

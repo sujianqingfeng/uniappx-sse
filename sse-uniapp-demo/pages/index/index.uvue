@@ -3,19 +3,40 @@
 		<!-- 头部区域 -->
 		<view class="header">
 			<text class="app-title">UniApp X</text>
-			<text class="app-subtitle">Native Plugin Demo</text>
+			<text class="app-subtitle">SSE Native Plugin Demo</text>
 		</view>
 		
 		<!-- 主要内容区域 -->
 		<view class="content">
+			<!-- SSE 连接卡片 -->
 			<view class="card">
-				<text class="card-title">Say Hi Plugin</text>
-				<text class="card-description">测试原生插件功能，点击下方按钮体验同步和异步调用</text>
+				<text class="card-title">SSE 连接测试</text>
+				<text class="card-description">测试 SSE 原生插件功能，连接到服务器并接收实时消息</text>
+				
+				<view class="input-group">
+					<text class="input-label">服务器 URL:</text>
+					<input class="input-field" v-model="serverUrl" placeholder="http://localhost:3000/sse" />
+				</view>
 				
 				<view class="button-group">
-					<view class="btn btn-secondary" @click="onSayHi">
-						<text class="btn-text">异步调用</text>
+					<view class="btn btn-primary" @click="onConnectSSE" v-if="!isConnected">
+						<text class="btn-text">连接 SSE</text>
 					</view>
+					<view class="btn btn-danger" @click="onDisconnectSSE" v-else>
+						<text class="btn-text">断开连接</text>
+					</view>
+					</view>
+			</view>
+			
+			<!-- 消息显示区域 -->
+			<view class="card" v-if="isConnected">
+				<text class="card-title">实时消息</text>
+				<view class="message-container">
+					<view class="message-item" v-for="(msg, index) in messages" :key="index">
+						<text class="message-time">{{ msg.time }}</text>
+						<text class="message-content">{{ msg.content }}</text>
+					</view>
+					<text class="no-messages" v-if="messages.length === 0">等待消息...</text>
 				</view>
 			</view>
 			
@@ -23,6 +44,12 @@
 			<view class="result-card" v-if="resultMessage">
 				<text class="result-title">调用结果</text>
 				<text class="result-content">{{ resultMessage }}</text>
+			</view>
+			
+			<!-- 状态显示 -->
+			<view class="status-card" v-if="connectionStatus">
+				<text class="status-title">连接状态</text>
+				<text class="status-content">{{ connectionStatus }}</text>
 			</view>
 		</view>
 		
@@ -34,31 +61,111 @@
 </template>
 
 <script>
-	import { sayHiApi } from "@/uni_modules/sse-plugin";
+	import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from "@/uni_modules/sse-plugin";
 
 	export default {
 		data() {
 			return {
-				resultMessage: ''
+				resultMessage: '',
+				serverUrl: 'http://localhost:3000/sse',
+				isConnected: false,
+				messages: [],
+				connectionStatus: '',
+				currentRequestId: ''
 			}
 		},
 		onLoad() {
-	
+			// 设置 SSE 事件监听器
+			this.setupSSEEventListeners();
+		},
+		onUnload() {
+			// 页面卸载时清理连接
+			this.cleanupSSE();
 		},
 		methods: {
-			onSayHi(){
-				this.resultMessage = '正在异步调用...'
-				sayHiApi({
-					say: 'hi',
+			setupSSEEventListeners() {
+				sseAddEventListenerApi({
+					onMessage: (event) => {
+						this.addMessage(event.message);
+						console.log('SSE Message:', event);
+					},
+					onOpen: (event) => {
+						this.isConnected = true;
+						this.connectionStatus = `连接成功: ${event.requestId}`;
+						this.resultMessage = `SSE 连接已建立 - ${event.requestId}`;
+						console.log('SSE Open:', event);
+					},
+					onError: (event) => {
+						this.connectionStatus = `连接错误: ${event.error}`;
+						this.resultMessage = `SSE 连接错误: ${event.error}`;
+						console.error('SSE Error:', event);
+					},
+					onClose: (event) => {
+						this.isConnected = false;
+						this.connectionStatus = `连接已关闭: ${event.requestId}`;
+						this.resultMessage = `SSE 连接已关闭`;
+						console.log('SSE Close:', event);
+					}
+				});
+			},
+			
+			onConnectSSE() {
+				if (!this.serverUrl) {
+					this.resultMessage = '请输入服务器 URL';
+					return;
+				}
+				
+				this.resultMessage = '正在连接 SSE...';
+				this.connectionStatus = '连接中...';
+				
+				sseConnectApi({
+					url: this.serverUrl,
+					requestId: `sse_${Date.now()}`,
+					headers: {
+						'User-Agent': 'UniApp-X-SSE-Plugin'
+					},
 					success: (res) => {
-						this.resultMessage = `异步调用成功: ${JSON.stringify(res)}`
-						console.log('async hi', res)
+						this.currentRequestId = res.requestId;
+						console.log('SSE Connect Success:', res);
 					},
 					fail: (error) => {
-						this.resultMessage = `异步调用失败: ${JSON.stringify(error)}`
-						console.error('async hi error', error)
+						this.resultMessage = `连接失败: ${JSON.stringify(error)}`;
+						this.connectionStatus = '连接失败';
+						console.error('SSE Connect Error:', error);
+					},
+					complete: (res) => {
+						console.log('SSE Connect Complete:', res);
 					}
-				})
+				});
+			},
+			
+			onDisconnectSSE() {
+				if (this.currentRequestId) {
+					sseCloseApi(this.currentRequestId);
+					this.currentRequestId = '';
+				}
+			},
+		
+		addMessage(content) {
+				const now = new Date();
+				const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+				
+				this.messages.unshift({
+					time: timeStr,
+					content: content
+				});
+				
+				// 限制消息数量
+				if (this.messages.length > 50) {
+					this.messages = this.messages.slice(0, 50);
+				}
+			},
+			
+			cleanupSSE() {
+				if (this.currentRequestId) {
+					sseCloseApi(this.currentRequestId);
+				}
+				sseRemoveEventListenerApi();
 			}
 		}
 	}
@@ -152,6 +259,11 @@
 		box-shadow: 0 4rpx 12rpx rgba(52, 199, 89, 0.3);
 	}
 	
+	.btn-danger {
+		background: #ff3b30;
+		box-shadow: 0 4rpx 12rpx rgba(255, 59, 48, 0.3);
+	}
+	
 	.btn-text {
 		font-size: 32rpx;
 		font-weight: 600;
@@ -191,5 +303,91 @@
 	.footer-text {
 		font-size: 24rpx;
 		color: #999999;
+	}
+	
+	/* 输入框样式 */
+	.input-group {
+		margin-bottom: 40rpx;
+	}
+	
+	.input-label {
+		font-size: 28rpx;
+		color: #333333;
+		margin-bottom: 15rpx;
+		display: block;
+	}
+	
+	.input-field {
+		width: 100%;
+		padding: 25rpx;
+		border: 2rpx solid #e0e0e0;
+		border-radius: 8rpx;
+		font-size: 28rpx;
+		background: #ffffff;
+	}
+	
+	.input-field:focus {
+		border-color: #007aff;
+		outline: none;
+	}
+	
+	/* 消息显示样式 */
+	.message-container {
+		max-height: 400rpx;
+		overflow-y: auto;
+	}
+	
+	.message-item {
+		padding: 20rpx 0;
+		border-bottom: 1rpx solid #f0f0f0;
+	}
+	
+	.message-item:last-child {
+		border-bottom: none;
+	}
+	
+	.message-time {
+		font-size: 24rpx;
+		color: #999999;
+		margin-bottom: 8rpx;
+		display: block;
+	}
+	
+	.message-content {
+		font-size: 26rpx;
+		color: #333333;
+		line-height: 1.4;
+		word-break: break-all;
+	}
+	
+	.no-messages {
+		font-size: 26rpx;
+		color: #999999;
+		text-align: center;
+		padding: 40rpx 0;
+	}
+	
+	/* 状态显示样式 */
+	.status-card {
+		background: #ffffff;
+		border-radius: 16rpx;
+		padding: 30rpx;
+		margin-bottom: 30rpx;
+		border-left: 6rpx solid #ff9500;
+		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+	}
+	
+	.status-title {
+		font-size: 28rpx;
+		font-weight: 600;
+		color: #333333;
+		margin-bottom: 15rpx;
+	}
+	
+	.status-content {
+		font-size: 26rpx;
+		color: #666666;
+		line-height: 1.5;
+		word-break: break-all;
 	}
 </style>

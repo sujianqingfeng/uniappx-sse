@@ -1,3 +1,11 @@
 {
-  "deploymentTarget": "12"
+  "deploymentTarget": "12",
+  "frameworks": [
+    "SSEFramework.framework"
+  ],
+  "permissions": {
+    "NSAppTransportSecurity": {
+      "NSAllowsArbitraryLoads": true
+    }
+  }
 }

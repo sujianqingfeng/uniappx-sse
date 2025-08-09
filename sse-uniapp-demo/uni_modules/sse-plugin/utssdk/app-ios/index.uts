@@ -1,33 +1,181 @@
 /**
- * 引用 iOS 系统库，示例如下：
- * import { UIDevice } from "UIKit";
- * [可选实现，按需引入]
+ * 引用 iOS 系统库和 SSEFramework
  */
+import { 
+  SSEConnectOptions, 
+  SSEConnectResult, 
+  SSEMessageEvent, 
+  SSEErrorEvent, 
+  SSECloseEvent, 
+  SSEEventListenerOptions,
+  SSEConnectApi,
+  SSECloseApi,
+  SSEAddEventListenerApi,
+  SSERemoveEventListenerApi
+} from '../interface.uts';
 
-import { SayHiApiOptions, SayHiApiResult, SayHiApi, SayHiApiSync } from '../interface.uts';
-import { SayHiApiFailImpl } from '../unierror';
+import { createSSEError } from '../unierror.uts';
 
 /**
- * 引入三方库
- * [可选实现，按需引入]
- *
- * 在 iOS 平台引入三方库有以下两种方式：
- * 1、通过引入三方库framework 或者.a 等方式，需要将 .framework 放到 ./Frameworks 目录下，将.a 放到 ./Libs 目录下。更多信息[详见](https://uniapp.dcloud.net.cn/plugin/uts-plugin.html#ios-平台原生配置)
- * 2、通过 cocoaPods 方式引入，将要引入的 pod 信息配置到 config.json 文件下的 dependencies-pods 字段下。详细配置方式[详见](https://uniapp.dcloud.net.cn/plugin/uts-ios-cocoapods.html)
- *
- * 在通过上述任意方式依赖三方库后，使用时需要在文件中 import:
- * 示例：import { LottieLoopMode	} from 'Lottie'
+ * 引入 SSEFramework
+ * Framework 位于 ./Frameworks 目录下
  */
+import { SSEManager } from 'SSEFramework';
+
+// 全局 SSE 管理器实例
+let sseManager: SSEManager | null = null;
+// 事件监听器映射，支持多个连接
+let eventListenersMap: Map<string, SSEEventListenerOptions> = new Map();
+
+// 初始化 SSE 管理器
+function getSSEManager(): SSEManager {
+  if (!sseManager) {
+    sseManager = new SSEManager();
+    // 设置代理来处理事件
+    sseManager.delegate = new SSEDelegateHandler();
+  }
+  return sseManager;
+}
+
+// SSE 代理处理器，实现 SSEManagerDelegate 协议
+class SSEDelegateHandler {
+  
+  // 接收到消息
+  sseManager(manager: SSEManager, didReceiveMessage: string, requestId: string) {
+    const listeners = eventListenersMap.get(requestId);
+    if (listeners?.onMessage) {
+      const event: SSEMessageEvent = {
+        requestId: requestId,
+        message: didReceiveMessage
+      };
+      listeners.onMessage(event);
+    }
+  }
+  
+  // 连接打开
+  sseManager(manager: SSEManager, didOpenWithRequestId: string) {
+    const listeners = eventListenersMap.get(didOpenWithRequestId);
+    if (listeners?.onOpen) {
+      const event: SSEConnectResult = {
+        requestId: didOpenWithRequestId,
+        message: "Connection opened"
+      };
+      listeners.onOpen(event);
+    }
+  }
+  
+  // 连接错误
+  sseManager(manager: SSEManager, didFailWithError: Error, requestId: string) {
+    const listeners = eventListenersMap.get(requestId);
+    if (listeners?.onError) {
+      const event: SSEErrorEvent = {
+        requestId: requestId,
+        error: didFailWithError.localizedDescription
+      };
+      listeners.onError(event);
+    }
+  }
+  
+  // 连接关闭
+  sseManager(manager: SSEManager, didCloseWithRequestId: string) {
+    const listeners = eventListenersMap.get(didCloseWithRequestId);
+    if (listeners?.onClose) {
+      const event: SSECloseEvent = {
+        requestId: didCloseWithRequestId
+      };
+      listeners.onClose(event);
+    }
+    // 连接关闭后移除监听器
+    eventListenersMap.delete(didCloseWithRequestId);
+  }
+}
 
 /**
- * UTSiOS 为平台内置对象，不需要 import 可直接调用其API，[详见](https://uniapp.dcloud.net.cn/uts/utsios.html)
+ * SSE 连接 API
+ * 调用 SSEFramework 的 startConnection 方法
  */
+export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
+  try {
+    const manager = getSSEManager();
+    const url = new URL(options.url);
+    const requestId = options.requestId || `sse_${Date.now()}`;
+    
+    // 存储事件监听器
+    if (options.onMessage || options.onError || options.onOpen || options.onClose) {
+      eventListenersMap.set(requestId, {
+        onMessage: options.onMessage,
+        onError: options.onError,
+        onOpen: options.onOpen,
+        onClose: options.onClose
+      });
+    }
+    
+    // 调用 SSEFramework 的 startConnection 方法
+    manager.startConnection(url, options.headers || {}, requestId);
+    
+    const result: SSEConnectResult = {
+      requestId: requestId,
+      message: "Connection started"
+    };
+    
+    options.success?.(result);
+    options.complete?.(result);
+    
+  } catch (error) {
+    const failError = createSSEError(9020001, (error as any)?.message || "Failed to start SSE connection");
+    options.fail?.(failError);
+    options.complete?.(failError);
+  }
+};
 
-// 引入 ios_framework 中的 SayHiFramework 类
-import { SayHiFramework } from 'ios_framework';
+/**
+ * SSE 关闭连接 API
+ * 调用 SSEFramework 的 cancelConnection 方法
+ */
+export const sseCloseApi: SSECloseApi = function (requestId: string) {
+  try {
+    const manager = getSSEManager();
+    if (manager) {
+      manager.cancelConnection(requestId);
+      // 移除对应的监听器
+      eventListenersMap.delete(requestId);
+    }
+  } catch (error) {
+    console.error('Error closing SSE connection:', (error as any)?.message);
+  }
+};
 
-export const sayHiApi : SayHiApi = function (options : SayHiApiOptions) {
-  const sayHi = new SayHiFramework()
-  const result = sayHi.say(options.say)
-  options.success?.({result})
+/**
+ * SSE 添加事件监听器 API
+ * 为指定连接添加事件监听器
+ */
+export const sseAddEventListenerApi: SSEAddEventListenerApi = function (options: SSEEventListenerOptions) {
+  if (options.requestId) {
+    const existingListeners = eventListenersMap.get(options.requestId) || {};
+    eventListenersMap.set(options.requestId, { ...existingListeners, ...options });
+  }
+};
+
+/**
+ * SSE 移除事件监听器 API
+ * 移除指定连接的事件监听器
+ */
+export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
+  if (requestId) {
+    eventListenersMap.delete(requestId);
+  } else {
+    // 清空所有监听器
+    eventListenersMap.clear();
+  }
+};
+
+/**
+ * 关闭所有 SSE 连接
+ */
+export function closeAllSSEConnections(): void {
+  const manager = getSSEManager();
+  if (manager) {
+    manager.cancelAllConnections();
+    eventListenersMap.clear();
+  }
 }

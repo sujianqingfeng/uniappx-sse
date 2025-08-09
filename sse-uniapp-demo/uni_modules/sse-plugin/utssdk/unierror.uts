@@ -1,9 +1,8 @@
 /* 此规范为 uni 规范，可以按照自己的需要选择是否实现 */
-import { SayHiApiErrorCode, SayHiApiFail } from "./interface.uts"
+import { SSEApiErrorCode, SSEApiFail } from "./interface.uts"
 /**
  * 错误主题
  * 注意：错误主题一般为插件名称，每个组件不同，需要使用时请更改。
- * [可选实现]
  */
 export const UniErrorSubject = 'sse-plugin-api';
 
@@ -11,29 +10,36 @@ export const UniErrorSubject = 'sse-plugin-api';
 /**
  * 错误信息
  * @UniError
- * [可选实现]
  */
-export const SayHiAPIErrors : Map<SayHiApiErrorCode, string> = new Map([
+export const SSEAPIErrors : Map<SSEApiErrorCode, string> = new Map([
   /**
    * 错误码及对应的错误信息
    */
-  [9010001, 'custom error mseeage1'],
-  [9010002, 'custom error mseeage2'],
+  [9020001, 'Failed to start SSE connection'],
+  [9020002, 'SSE connection error'],
+  [9020003, 'Invalid SSE URL'],
 ]);
 
 
 /**
  * 错误对象实现
  */
-export class SayHiApiFailImpl extends UniError implements SayHiApiFail {
+export class SSEApiFailImpl extends UniError implements SSEApiFail {
 
   /**
    * 错误对象构造函数
    */
-  constructor(errCode : SayHiApiErrorCode) {
+  constructor(errCode : SSEApiErrorCode, message?: string) {
     super();
     this.errSubject = UniErrorSubject;
     this.errCode = errCode;
-    this.errMsg = SayHiAPIErrors.get(errCode) ?? "";
+    this.errMsg = message || SSEAPIErrors.get(errCode) || "";
   }
+}
+
+/**
+ * 创建 SSE 错误对象的工具函数
+ */
+export function createSSEError(code: SSEApiErrorCode, message?: string): SSEApiFail {
+  return new SSEApiFailImpl(code, message);
 }

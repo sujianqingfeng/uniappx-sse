@@ -1,0 +1,35 @@
+---
+globs: *.uts
+alwaysApply: false
+---
+## UTS 插件目录与文件结构规范
+
+- **基础结构（uni_modules 插件）**
+  - `uni_modules/<plugin-name>/utssdk/`
+    - `interface.uts`: 插件对外导出的 API 类型与函数声明（跨端统一）。
+    - `unierror.uts`: 插件的错误码与错误对象构造，统一错误域。
+    - `app-android/`
+      - `index.uts`: Android 端实现，必要时集成 AAR（放置于 `libs/` 并在 `config.json` 声明）。
+      - `config.json`: 原生依赖、权限、混淆、网络安全、ProGuard、`uses-permission` 等。
+      - `libs/*.aar`: 三方或自研原生产物（可选）。
+    - `app-ios/`
+      - `index.uts`: iOS 端实现，必要时集成 Framework（放置于 `Frameworks/` 并在 `config.json` 声明）。
+      - `config.json`: 原生依赖、权限、`Info.plist` 注入、CocoaPods/Frameworks 引入等。
+      - `Frameworks/<YourFramework>.framework`: 三方或自研原生产物（可选）。
+    - `web/`、`mp-*`：Web/小程序端实现（JS/TS 实现为主）。
+
+- **实现要点**
+  - 在 `interface.uts` 中统一导出类型与方法签名；各端 `index.uts` 实现对应方法。
+  - 仅允许 import 插件目录内部文件，禁止跨目录外部 import。
+  - 导出使用命名导出；避免 `export default`，便于摇树优化与联编。
+  - 组件插件需在模板中使用，API 插件在脚本中调用。API 插件可开窗口/UI，但不可嵌入模板。
+
+- **命名与语义**
+  - 方法命名体现端无关语义；端差异在实现中消化。
+  - 事件订阅方法建议 `onXxx`（可多次回调）/`offXxx`（取消订阅）。
+  - 异步返回优先 Promise；持续回调用 `@UTSJS.keepAlive` 或 `onXxx` 约定。
+
+参考文档：
+- [UTS 插件（官方）](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html)
+- [UTS 语言与平台说明（官方）](https://doc.dcloud.net.cn/uni-app-x/uts/)
+

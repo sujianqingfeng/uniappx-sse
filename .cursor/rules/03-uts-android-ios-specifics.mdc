@@ -1,0 +1,27 @@
+---
+globs: *.uts
+alwaysApply: false
+---
+## Android 与 iOS 平台要点
+
+- **公共**
+  - 网络、权限、混淆、安全配置分别在各端 `config.json` 与工程模板注入；遵循最小权限原则。
+  - 使用统一的 `interface.uts` 类型与方法签名；端差异在 `index.uts` 内部处理。
+  - 长连接/事件流慎用主线程，避免阻塞 UI；在原生层用合适线程/队列。
+
+- **Android（app-android）**
+  - 依赖 AAR 放置 `libs/` 并在 `config.json` 声明，必要时添加 `proguard-rules.pro`。
+  - 申请权限与网络白名单在 `config.json`；需考虑 Android 13+ 行为变更（通知权限、存储分区等）。
+  - uni-app 项目 Android 环境不支持函数重载；避免用重载区分 API。
+  - 注意混淆：对反射/入口类/回调接口保持 keep。
+
+- **iOS（app-ios）**
+  - 引入 Framework 放置 `Frameworks/` 并在 `config.json` 声明；或使用 CocoaPods（官方文档支持）。
+  - `Info.plist` 权限描述（如 NSCameraUsageDescription 等）通过 `config.json` 注入。
+  - 线程与 RunLoop：持续回调（如 SSE/WebSocket）在后台队列执行，切 UI 前回到主队列。
+  - 静态/动态库符号可见性与签名：确保模拟器/真机架构齐备（arm64、x86_64 模拟器视需）。
+
+参考文档：
+- [UTS 插件（官方）](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html)
+- [UTS 语言与平台说明（官方）](https://doc.dcloud.net.cn/uni-app-x/uts/)
+

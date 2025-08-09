@@ -1,0 +1,53 @@
+---
+globs: *.uts
+alwaysApply: false
+---
+## 回调、事件与保活（keepAlive）
+
+- **单次 vs 多次回调**
+  - 单次回调：常见于 `success/fail/complete`；建议 Promise 化。
+  - 多次回调（事件流）：
+    - 若函数名以 `on` 开头且仅有 1 个 callback 参数，可多次触发，不需装饰器。
+    - 其他情况需使用 `@UTSJS.keepAlive` 以保持回调函数存活，可持续触发。
+
+- **keepAlive 使用注意**
+  - 标注 `@UTSJS.keepAlive` 后，该函数的所有回调参数均被长期持有。
+  - 避免频繁调用导致回调堆积与内存压力；提供 `offXxx` 或 `unsubscribe` 释放路径。
+  - 如实现同时存在 `app-android` 与 `app-ios`，两端都需加装饰器以保持一致行为。
+  - 装饰器当前不支持 `export const fn = ()=>{}` 的导出写法，改用 `export function fn(){}`。
+
+- **建议的 API 形态**
+  - 订阅/反订阅：`onEvent(cb)` / `offEvent(cb?)`，必要时支持 `removeAll()`。
+  - 持续回调的参数封装在 `Options` 中也可保活（同样需 `@UTSJS.keepAlive`）。
+  - 为易用性，提供 `start/stop` 与 `on/off` 的双语义。
+
+示例：
+
+```uts
+export type SSEOptions = {
+  url: string
+  headers?: UTSJSONObject
+  onMessage?: (data: string) => void
+}
+
+@UTSJS.keepAlive
+export function startSSE(options: SSEOptions) {
+  // 调用原生层并在数据到达时多次触发 options.onMessage
+}
+
+export function stopSSE() {
+  // 释放原生资源与回调
+}
+
+export function onSSEMessage(callback: (data: string) => void) {
+  // on 开头且仅一个 callback，可多次触发
+}
+
+export function offSSEMessage(callback?: (data: string) => void) {
+  // 释放指定或全部回调
+}
+```
+
+参考文档：
+- [UTS 插件：回调保活（官方）](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html)
+

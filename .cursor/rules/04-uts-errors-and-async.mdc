@@ -1,0 +1,46 @@
+---
+globs: *.uts
+alwaysApply: false
+---
+## 错误规范与异步模型
+
+- **错误域与码**
+  - 在 `unierror.uts` 中定义插件专属错误域（如 `ERR_DOMAIN = 'sse-plugin'`）与错误码枚举（如 `ERR_ABORTED`、`ERR_NETWORK`）。
+  - 暴露建错工具：`createError(code: string, message?: string, extra?: UTSJSONObject)`。
+  - 统一返回/抛错形态：
+    - Promise API：`reject(createError(...))` 或 `throw createError(...)`。
+    - 回调 API：在 `fail` / `complete` 传递错误对象。
+
+- **异步模式建议**
+  - 单次任务：Promise 优先；同时兼容回调参数（`success/fail/complete`）。
+  - 持续事件：`onXxx/offXxx` 或 `@UTSJS.keepAlive` 的 options 回调。
+  - 取消控制：返回 `AbortController` 风格或提供 `stop/cancel` 方法。
+
+- **边界与资源释放**
+  - 生命周期：在 App 进入后台、页面卸载时释放原生资源与回调，避免泄漏。
+  - `offXxx`/`stop` 必须可重复调用且幂等。
+
+示例：
+
+```uts
+export enum SSEErrorCode {
+  NETWORK = 'NETWORK',
+  ABORTED = 'ABORTED'
+}
+
+export function createError(code: SSEErrorCode, message?: string): UTSJSONObject {
+  return { domain: 'sse-plugin', code, message: message ?? '' }
+}
+
+export function open(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // 原生层连接…
+    // 失败：reject(createError(SSEErrorCode.NETWORK, 'connect fail'))
+    resolve()
+  })
+}
+```
+
+参考文档：
+- [UTS 插件（官方）](https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html)
+
