@@ -44,7 +44,7 @@ require_cmd perl
 require_cmd find
 require_cmd xargs
 
-# Build file list excluding binary/derived dirs
+# Build file list excluding binary/derived dirs and standard config files
 build_file_list() {
   # Exclude heavy/binary directories and this script/config to avoid self-editing
   # - iOS prebuilt frameworks inside uni_modules
@@ -52,6 +52,8 @@ build_file_list() {
   # - Gradle/wrapper/cache/build outputs
   # - Node modules if present
   # - .git and IDE folders
+  # - Standard Gradle configuration files (libs.versions.toml, settings.gradle*)
+  # - Standard Android build configuration files
   find "$ROOT_DIR" \
     \( \
       -path "$SCRIPT_DIR/rename.config.env" -o \
@@ -75,12 +77,55 @@ build_file_list() {
       -name "*.ttf" -o \
       -name "*.otf" -o \
       -name "*.ico" -o \
-      -name "*.pdf" \
+      -name "*.pdf" -o \
+      -name "gradle/libs.versions.toml" -o \
+      -name "settings.gradle*" -o \
+      -name "gradle.properties" -o \
+      -name "local.properties" \
     \) -prune -o -type f -print0
+}
+
+# Check if replacement is safe (avoid standard Android plugin IDs and configs)
+is_safe_replacement() {
+  local from="$1" to="$2"
+  local file="$3"
+  
+  # Skip files that should never be modified
+  if [[ "$file" == *"libs.versions.toml" ]] || \
+     [[ "$file" == *"settings.gradle"* ]] || \
+     [[ "$file" == *"gradle.properties" ]] || \
+     [[ "$file" == *"local.properties" ]]; then
+    return 1
+  fi
+  
+  # Avoid replacing standard Android plugin IDs
+  if [[ "$from" == "android-library" ]] || \
+     [[ "$from" == "android-application" ]] || \
+     [[ "$from" == "kotlin-android" ]] || \
+     [[ "$from" == "kotlin-compose" ]]; then
+    return 1
+  fi
+  
+  # Avoid replacing standard Gradle patterns
+  if [[ "$from" == "com.android.library" ]] || \
+     [[ "$from" == "com.android.application" ]] || \
+     [[ "$from" == "org.jetbrains.kotlin.android" ]] || \
+     [[ "$from" == "org.jetbrains.kotlin.plugin.compose" ]]; then
+    return 1
+  fi
+  
+  return 0
 }
 
 replace_literal_in_file() {
   local file="$1" from="$2" to="$3"
+  
+  # Safety check before replacement
+  if ! is_safe_replacement "$from" "$to" "$file"; then
+    echo "Skipping unsafe replacement in $file: '$from' -> '$to'"
+    return 0
+  fi
+  
   FROM="$from" TO="$to" perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM}; $to=$ENV{TO}; } s/\Q$from\E/$to/g' "$file"
 }
 
@@ -273,13 +318,13 @@ main() {
       # Targeted updates for library module name in settings and gradle project refs
       if [[ -f "$ANDROID_ROOT_CUR/settings.gradle.kts" ]]; then
         FROM_MOD="${ANDROID_LIBRARY_MODULE_DIR_FROM}" TO_MOD="${ANDROID_LIBRARY_MODULE_DIR_TO}" \
-          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/include\((['"'"'"]):$from\1\)/include\(\$1:$to\$1\)/g' \
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/include\((['"'"'"]):$from\1\)/include\(\1:$to\1\)/g' \
           "$ANDROID_ROOT_CUR/settings.gradle.kts"
       fi
       find "$ANDROID_ROOT_CUR" -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -print0 | \
       while IFS= read -r -d $'\0' gf; do
         FROM_MOD="${ANDROID_LIBRARY_MODULE_DIR_FROM}" TO_MOD="${ANDROID_LIBRARY_MODULE_DIR_TO}" \
-          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/project\((['"'"'"]):$from\1\)/project\(\$1:$to\$1\)/g' "$gf"
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/project\((['"'"'"]):$from\1\)/project\(\1:$to\1\)/g' "$gf"
       done
     fi
 
@@ -290,14 +335,14 @@ main() {
       # Targeted updates for app module name in settings and gradle project refs
       if [[ -f "$ANDROID_ROOT_CUR/settings.gradle.kts" ]]; then
         FROM_MOD="${ANDROID_APP_MODULE_DIR_FROM}" TO_MOD="${ANDROID_APP_MODULE_DIR_TO}" \
-          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/include\((['"'"'"]):$from\1\)/include\(\$1:$to\$1\)/g' \
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/include\((['"'"'"]):$from\1\)/include\(\1:$to\1\)/g' \
           "$ANDROID_ROOT_CUR/settings.gradle.kts"
       fi
       # Update any project(":app") references under android root
       find "$ANDROID_ROOT_CUR" -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -print0 | \
       while IFS= read -r -d $'\0' gf; do
         FROM_MOD="${ANDROID_APP_MODULE_DIR_FROM}" TO_MOD="${ANDROID_APP_MODULE_DIR_TO}" \
-          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/project\((['"'"'"]):$from\1\)/project\(\$1:$to\$1\)/g' "$gf"
+          perl -0777 -i -pe 'BEGIN { $from=$ENV{FROM_MOD}; $to=$ENV{TO_MOD}; } s/project\((['"'"'"]):$from\1\)/project\(\1:$to\1\)/g' "$gf"
       done
     fi
 
