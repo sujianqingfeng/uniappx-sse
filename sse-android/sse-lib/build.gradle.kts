@@ -5,7 +5,7 @@ plugins {
 
 android {
   namespace = "com.hens.sse.library"
-  compileSdk = 35
+  compileSdk = 34
 
   defaultConfig {
     minSdk = 21
