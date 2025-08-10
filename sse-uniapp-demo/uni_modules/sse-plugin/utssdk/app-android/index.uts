@@ -21,9 +21,7 @@ import { createSSEError } from '../unierror.uts';
 /**
  * 引入 SSEManager 原生库
  */
-// #ifdef APP-ANDROID
-import SSEManager from 'com.hens.sse.library.SSEManager';
-// #endif
+import SSEManager from 'uts.sdk.modules.ssePlugin.SSEManager';
 
 // 全局 SSE 管理器单例
 let sseManager: SSEManager | null = null;
