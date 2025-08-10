@@ -128,6 +128,37 @@ function resolveAndroidLoopback(url: string): string {
   return resolved;
 }
 
+// 过滤与浏览器端一致的不安全/受限头部键名
+function isForbiddenHeaderName(name: string): boolean {
+  const n = ('' + name).toLowerCase();
+  if (n.startsWith('proxy-') || n.startsWith('sec-')) return true;
+  switch (n) {
+    case 'accept-charset':
+    case 'accept-encoding':
+    case 'access-control-request-headers':
+    case 'access-control-request-method':
+    case 'connection':
+    case 'content-length':
+    case 'cookie':
+    case 'cookie2':
+    case 'date':
+    case 'dnt':
+    case 'expect':
+    case 'host':
+    case 'keep-alive':
+    case 'origin':
+    case 'referer':
+    case 'te':
+    case 'trailer':
+    case 'transfer-encoding':
+    case 'upgrade':
+    case 'via':
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * SSE 连接 API
  */
@@ -137,11 +168,19 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
     const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
     // 多连接：不再取消其他连接
 
-    // 调用原生 SSEManager 连接方法（使用系统 API 实现）
-    // 注意：UTSJSONObject → Kotlin Map 在部分环境可能产生运行时转换错误，这里先跳过 headers 以确保连接流程
-    const headers = null;
+    // 将 headers 安全序列化为 JSON 字符串，交由原生层解析并过滤
     const finalUrl = resolveAndroidLoopback(options.url);
-    manager.startConnection(finalUrl, headers, requestId, sseCallback);
+    let headersJson: string | null = null;
+    try {
+      if (options.headers != null) {
+        // 可选：如需在 UTS 侧做基础过滤，可在此基于 isForbiddenHeaderName 复制一份对象再 stringify
+        headersJson = JSON.stringify(options.headers as any);
+      }
+    } catch (_) {
+      headersJson = null;
+    }
+    // 使用支持 JSON 头部的新接口，避免在 UTS 侧做不兼容遍历
+    manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback);
     
     const result: SSEConnectResult = {
       requestId: requestId,
@@ -166,17 +205,7 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
   try {
     const manager = getSSEManager();
     manager.cancelConnection(requestId);
-  } catch (error) {
-    let errorMessage: string;
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else {
-      try {
-        errorMessage = '' + (error as any);
-      } catch (_) {
-        errorMessage = 'Unknown error';
-      }
-    }
+  } catch (_){
   }
 };
 

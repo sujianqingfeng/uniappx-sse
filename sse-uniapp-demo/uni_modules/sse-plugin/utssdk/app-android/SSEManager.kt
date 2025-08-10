@@ -3,6 +3,8 @@ package uts.sdk.modules.ssePlugin
 import android.util.Log
 import android.os.Handler
 import android.os.Looper
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -82,6 +84,77 @@ class SSEManager private constructor() {
         fun onMessage(message: String, requestId: String)
         fun onError(error: String, requestId: String)
         fun onClose(requestId: String)
+    }
+
+    /**
+     * 与 Web 侧一致的受限请求头过滤
+     */
+    private fun isForbiddenHeaderName(name: String?): Boolean {
+        val n = (name ?: "").lowercase()
+        if (n.startsWith("proxy-") || n.startsWith("sec-")) return true
+        return when (n) {
+            "accept-charset",
+            "accept-encoding",
+            "access-control-request-headers",
+            "access-control-request-method",
+            "connection",
+            "content-length",
+            "cookie",
+            "cookie2",
+            "date",
+            "dnt",
+            "expect",
+            "host",
+            "keep-alive",
+            "origin",
+            "referer",
+            "te",
+            "trailer",
+            "transfer-encoding",
+            "upgrade",
+            "via" -> true
+            else -> false
+        }
+    }
+
+    private fun parseHeadersJson(headersJson: String?): Map<String, Any?>? {
+        if (headersJson.isNullOrBlank()) return null
+        return try {
+            val obj = JSONObject(headersJson)
+            val out = mutableMapOf<String, Any?>()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val rawKey = keys.next()
+                if (rawKey.isNullOrBlank()) continue
+                if (isForbiddenHeaderName(rawKey)) continue
+                val value = obj.opt(rawKey)
+                val vStr = when (value) {
+                    is JSONArray -> {
+                        val parts = mutableListOf<String>()
+                        for (i in 0 until value.length()) {
+                            val item = value.opt(i)
+                            parts.add(item?.toString() ?: "")
+                        }
+                        parts.joinToString(separator = ", ")
+                    }
+                    null -> null
+                    else -> value.toString()
+                }
+                if (vStr != null) out[rawKey] = vStr.replace("\r", " ").replace("\n", " ")
+            }
+            if (out.isEmpty()) null else out
+        } catch (t: Throwable) {
+            logWarn("parseHeadersJson 失败，将不附加自定义头: ${t.message}")
+            null
+        }
+    }
+
+    /**
+     * 适配 UTS 侧以 JSON 传递 headers 的调用，内部解析后复用现有实现
+     */
+    fun startConnectionWithHeadersJson(url: String, headersJson: String?, requestId: String, callback: SSECallback) {
+        val parsed = parseHeadersJson(headersJson)
+        startConnection(url, parsed, requestId, callback)
     }
 
     /**
