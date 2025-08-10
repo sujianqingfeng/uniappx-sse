@@ -79,8 +79,8 @@
 				},
 				"uni-app-x": {
 					"web": {
-						"safari": "-",
-						"chrome": "-"
+						"safari": "✓",
+						"chrome": "✓"
 					},
 					"app": {
 						"android": "✓",

@@ -27,9 +27,10 @@ import SSEManager from 'com.hens.sse.library.SSEManager';
 
 // 全局 SSE 管理器单例
 let sseManager: SSEManager | null = null;
-// 单连接：当前连接的 requestId 与监听器
-let currentRequestId: string | null = null;
-let currentListeners: SSEEventListenerOptions | null = null;
+
+// 多连接监听器存储（与 iOS/web 对齐）
+let listenersByRequestId: Map<string, SSEEventListenerOptions[]> = new Map();
+let globalListeners: SSEEventListenerOptions[] = [];
 
 // 获取 SSE 管理器（单例）
 function getSSEManager(): SSEManager {
@@ -44,25 +45,69 @@ function getSSEManager(): SSEManager {
 // Kotlin 回调实现，转发到 UTS 监听器
 class AndroidSSECallback implements SSEManager.SSECallback {
   override onOpen(requestId: string) {
-    console.log('[UTS][SSE] onOpen', requestId)
-    const evt: SSEConnectResult = { requestId, message: 'open' };
-    currentListeners?.onOpen?.(evt);
+    console.log('[UTS][SSE][ANDROID] onOpen', requestId)
+    const evt: SSEConnectResult = { requestId, message: 'Connection opened' };
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onOpen;
+        if (cb != null) { cb(evt); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onOpen;
+      if (gcb != null) { gcb(evt); }
+    }
   }
   override onMessage(message: string, requestId: string) {
-    const preview = message != null && message.length > 200 ? (message.substring(0, 200) + '…') : message
-    console.log('[UTS][SSE] onMessage', requestId, 'len=', message?.length, 'preview=', preview)
+    const preview = message.length > 200 ? (message.substring(0, 200) + '…') : message
+    console.log('[UTS][SSE][ANDROID] onMessage', requestId, 'len=', message.length, 'preview=', preview)
     const evt: SSEMessageEvent = { requestId, message };
-    currentListeners?.onMessage?.(evt);
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onMessage;
+        if (cb != null) { cb(evt); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onMessage;
+      if (gcb != null) { gcb(evt); }
+    }
   }
   override onError(error: string, requestId: string) {
-    console.error('[UTS][SSE] onError', requestId, error)
+    console.error('[UTS][SSE][ANDROID] onError', requestId, error)
     const evt: SSEErrorEvent = { requestId, error };
-    currentListeners?.onError?.(evt);
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onError;
+        if (cb != null) { cb(evt); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onError;
+      if (gcb != null) { gcb(evt); }
+    }
   }
   override onClose(requestId: string) {
-    console.log('[UTS][SSE] onClose', requestId)
+    console.log('[UTS][SSE][ANDROID] onClose', requestId)
     const evt: SSECloseEvent = { requestId };
-    currentListeners?.onClose?.(evt);
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onClose;
+        if (cb != null) { cb(evt); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onClose;
+      if (gcb != null) { gcb(evt); }
+    }
+    // 关闭后清理该 requestId 的监听器
+    if (listenersByRequestId.has(requestId)) {
+      listenersByRequestId.delete(requestId);
+    }
   }
 }
 
@@ -79,7 +124,7 @@ function resolveAndroidLoopback(url: string): string {
     ];
     for (let i = 0; i < patterns.length; i++) {
       const p = patterns[i];
-      if (resolved.indexOf(p) !== -1) {
+      if (resolved.indexOf(p) != -1) {
         resolved = resolved.replace(p, '://10.0.2.2');
       }
     }
@@ -105,28 +150,7 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
     const manager = getSSEManager();
     console.log('[UTS][SSE] manager ready')
     const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
-
-    // 单连接：如已存在连接则先断开
-    if (currentRequestId != null) {
-      const currentId: string = currentRequestId!;
-      console.log('[UTS][SSE] existing connection detected, cancel first:', currentId)
-      try {
-        manager.cancelConnection(currentId);
-        console.log('[UTS][SSE] cancelled existing:', currentId)
-      } catch (e) {
-        let errStr: string = ''
-        if (e instanceof Error) {
-          errStr = e.message
-        } else if (e != null) {
-          errStr = '' + (e as any)
-        } else {
-          errStr = 'unknown'
-        }
-        console.error('[UTS][SSE] cancel error:', errStr)
-      }
-    }
-    currentRequestId = requestId;
-    console.log('[UTS][SSE] currentRequestId set to', currentRequestId)
+    // 多连接：不再取消其他连接
 
     // 调用原生 SSEManager 连接方法（使用系统 API 实现）
     // 注意：UTSJSONObject → Kotlin Map 在部分环境可能产生运行时转换错误，这里先跳过 headers 以确保连接流程
@@ -158,21 +182,18 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
 export const sseCloseApi: SSECloseApi = function (requestId: string) {
   try {
     const manager = getSSEManager();
-    if (manager != null) {
-      console.log('[UTS][SSE] sseCloseApi ->', requestId)
-      manager.cancelConnection(requestId);
-      if (currentRequestId == requestId) {
-        currentRequestId = null;
-      }
-    }
+    console.log('[UTS][SSE] sseCloseApi ->', requestId)
+    manager.cancelConnection(requestId);
   } catch (error) {
     let errorMessage: string;
     if (error instanceof Error) {
       errorMessage = error.message;
-    } else if (error != null) {
-      errorMessage = error.toString();
     } else {
-      errorMessage = "Unknown error";
+      try {
+        errorMessage = '' + (error as any);
+      } catch (_) {
+        errorMessage = 'Unknown error';
+      }
     }
     console.error('Error closing SSE connection:', errorMessage);
   }
@@ -183,18 +204,20 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
  */
 @UTSJS.keepAlive
 export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
-  console.log('[UTS][SSE] sseAddEventListenerApi')
-  if (currentListeners == null) {
-    currentListeners = options;
+  console.log('[UTS][SSE][ANDROID] sseAddEventListenerApi')
+  const reqId = options.requestId;
+  if (reqId != null) {
+    const list = listenersByRequestId.get(reqId);
+    if (list == null) {
+      listenersByRequestId.set(reqId, [options]);
+    } else {
+      const merged: SSEEventListenerOptions[] = [];
+      for (let i = 0; i < list.length; i++) { merged.push(list[i]); }
+      merged.push(options);
+      listenersByRequestId.set(reqId, merged);
+    }
   } else {
-    const existingListeners = currentListeners!;
-    currentListeners = {
-      requestId: options.requestId != null ? options.requestId : existingListeners.requestId,
-      onMessage: options.onMessage != null ? options.onMessage : existingListeners.onMessage,
-      onError: options.onError != null ? options.onError : existingListeners.onError,
-      onClose: options.onClose != null ? options.onClose : existingListeners.onClose,
-      onOpen: options.onOpen != null ? options.onOpen : existingListeners.onOpen
-    };
+    globalListeners.push(options);
   }
 }
 
@@ -202,19 +225,25 @@ export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
  * SSE 移除事件监听器 API
  */
 export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
-  // 单连接：忽略 requestId，直接清空当前监听器
-  console.log('[UTS][SSE] sseRemoveEventListenerApi -> clear listeners')
-  currentListeners = null;
+  if (requestId != null) {
+    if (listenersByRequestId.has(requestId)) {
+      listenersByRequestId.delete(requestId);
+      console.log('[UTS][SSE][ANDROID] removed listeners for requestId:', requestId)
+    }
+  } else {
+    globalListeners = [];
+    console.log('[UTS][SSE][ANDROID] cleared global listeners')
+  }
 };
 
 /**
  * 关闭所有 SSE 连接
  */
 export function closeAllSSEConnections(): void {
-  console.log('[UTS][SSE] closeAllSSEConnections')
+  console.log('[UTS][SSE][ANDROID] closeAllSSEConnections')
   const manager = getSSEManager();
   manager.cancelAllConnections();
-  currentRequestId = null;
-  currentListeners = null;
+  listenersByRequestId.clear();
+  globalListeners = [];
 }
 
