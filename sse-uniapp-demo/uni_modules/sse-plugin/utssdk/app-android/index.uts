@@ -18,6 +18,15 @@ import {
 
 import { createSSEError } from '../unierror.uts';
 
+function runOnMainThread(fn: () => void): void {
+  try {
+    // 调度到前端事件循环，确保 UI 可见更新
+    setTimeout(() => fn(), 0);
+    return;
+  } catch (_) { /* ignore */ }
+  fn();
+}
+
 /**
  * 引入 SSEManager 原生库
  */
@@ -44,20 +53,25 @@ function getSSEManager(): SSEManager {
 // Kotlin 回调实现，转发到 UTS 监听器
 class AndroidSSECallback implements SSEManager.SSECallback {
   override onOpen(requestId: string) {
+    console.log('[UTS][SSE] onOpen', requestId)
     const evt: SSEConnectResult = { requestId, message: 'open' };
-    currentListeners?.onOpen?.(evt);
+    runOnMainThread(() => { currentListeners?.onOpen?.(evt); })
   }
   override onMessage(message: string, requestId: string) {
+    const preview = message != null && message.length > 200 ? (message.substring(0, 200) + '…') : message
+    console.log('[UTS][SSE] onMessage', requestId, 'len=', message?.length, 'preview=', preview)
     const evt: SSEMessageEvent = { requestId, message };
-    currentListeners?.onMessage?.(evt);
+    runOnMainThread(() => { currentListeners?.onMessage?.(evt); })
   }
   override onError(error: string, requestId: string) {
+    console.error('[UTS][SSE] onError', requestId, error)
     const evt: SSEErrorEvent = { requestId, error };
-    currentListeners?.onError?.(evt);
+    runOnMainThread(() => { currentListeners?.onError?.(evt); })
   }
   override onClose(requestId: string) {
+    console.log('[UTS][SSE] onClose', requestId)
     const evt: SSECloseEvent = { requestId };
-    currentListeners?.onClose?.(evt);
+    runOnMainThread(() => { currentListeners?.onClose?.(evt); })
   }
 }
 
@@ -79,6 +93,11 @@ function resolveAndroidLoopback(url: string): string {
       }
     }
   }
+  if (resolved !== url) {
+    console.log('[UTS][SSE] resolveAndroidLoopback:', url, '=>', resolved)
+  } else {
+    console.log('[UTS][SSE] resolveAndroidLoopback: no change for', url)
+  }
   return resolved;
 }
 
@@ -87,20 +106,42 @@ function resolveAndroidLoopback(url: string): string {
  */
 export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
   try {
+    console.log('[UTS][SSE] sseConnectApi called with:', JSON.stringify({
+      url: options.url,
+      headers: options.headers != null ? '[object]' : null,
+      requestId: options.requestId
+    }))
     const manager = getSSEManager();
+    console.log('[UTS][SSE] manager ready')
     const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
 
     // 单连接：如已存在连接则先断开
     if (currentRequestId != null) {
       const currentId: string = currentRequestId!;
-      try { manager.cancelConnection(currentId); } catch (e) { /* ignore */ }
+      console.log('[UTS][SSE] existing connection detected, cancel first:', currentId)
+      try {
+        manager.cancelConnection(currentId);
+        console.log('[UTS][SSE] cancelled existing:', currentId)
+      } catch (e) {
+        let errStr: string = ''
+        if (e instanceof Error) {
+          errStr = e.message
+        } else if (e != null) {
+          errStr = '' + (e as any)
+        } else {
+          errStr = 'unknown'
+        }
+        console.error('[UTS][SSE] cancel error:', errStr)
+      }
     }
     currentRequestId = requestId;
+    console.log('[UTS][SSE] currentRequestId set to', currentRequestId)
 
     // 调用原生 SSEManager 连接方法（使用系统 API 实现）
-    // 直接传递 UTSJSONObject，由桥接层转换
-    const headers = options.headers != null ? options.headers as Map<string, any> : null;
+    // 注意：UTSJSONObject → Kotlin Map 在部分环境可能产生运行时转换错误，这里先跳过 headers 以确保连接流程
+    const headers = null;
     const finalUrl = resolveAndroidLoopback(options.url);
+    console.log('[UTS][SSE] startConnection -> finalUrl=', finalUrl, 'requestId=', requestId, 'hasHeaders=', false)
     manager.startConnection(finalUrl, headers, requestId, sseCallback);
     
     const result: SSEConnectResult = {
@@ -113,6 +154,7 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Failed to start SSE connection";
+    console.error('[UTS][SSE] sseConnectApi error:', errorMessage)
     const failError = createSSEError(9020001, errorMessage);
     options.fail?.(failError);
     options.complete?.(failError);
@@ -126,6 +168,7 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
   try {
     const manager = getSSEManager();
     if (manager != null) {
+      console.log('[UTS][SSE] sseCloseApi ->', requestId)
       manager.cancelConnection(requestId);
       if (currentRequestId == requestId) {
         currentRequestId = null;
@@ -149,6 +192,7 @@ export const sseCloseApi: SSECloseApi = function (requestId: string) {
  */
 @UTSJS.keepAlive
 export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
+  console.log('[UTS][SSE] sseAddEventListenerApi')
   if (currentListeners == null) {
     currentListeners = options;
   } else {
@@ -168,6 +212,7 @@ export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
  */
 export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
   // 单连接：忽略 requestId，直接清空当前监听器
+  console.log('[UTS][SSE] sseRemoveEventListenerApi -> clear listeners')
   currentListeners = null;
 };
 
@@ -175,6 +220,7 @@ export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (re
  * 关闭所有 SSE 连接
  */
 export function closeAllSSEConnections(): void {
+  console.log('[UTS][SSE] closeAllSSEConnections')
   const manager = getSSEManager();
   manager.cancelAllConnections();
   currentRequestId = null;
