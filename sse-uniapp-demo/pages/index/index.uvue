@@ -273,7 +273,7 @@ export default {
     display: flex;
     flex-direction: column;
     position: relative;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
   }
 	
@@ -309,7 +309,7 @@ export default {
   .page-scroll {
     /* 占据 header 与 footer 之间的剩余空间 */
     flex: 1 1 auto;
-    min-height: 0; /* 允许内部滚动 */
+    height: 0
   }
 	
   .card {

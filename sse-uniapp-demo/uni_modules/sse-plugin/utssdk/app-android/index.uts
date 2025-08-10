@@ -18,15 +18,6 @@ import {
 
 import { createSSEError } from '../unierror.uts';
 
-function runOnMainThread(fn: () => void): void {
-  try {
-    // 调度到前端事件循环，确保 UI 可见更新
-    setTimeout(() => fn(), 0);
-    return;
-  } catch (_) { /* ignore */ }
-  fn();
-}
-
 /**
  * 引入 SSEManager 原生库
  */
@@ -55,23 +46,23 @@ class AndroidSSECallback implements SSEManager.SSECallback {
   override onOpen(requestId: string) {
     console.log('[UTS][SSE] onOpen', requestId)
     const evt: SSEConnectResult = { requestId, message: 'open' };
-    runOnMainThread(() => { currentListeners?.onOpen?.(evt); })
+    currentListeners?.onOpen?.(evt);
   }
   override onMessage(message: string, requestId: string) {
     const preview = message != null && message.length > 200 ? (message.substring(0, 200) + '…') : message
     console.log('[UTS][SSE] onMessage', requestId, 'len=', message?.length, 'preview=', preview)
     const evt: SSEMessageEvent = { requestId, message };
-    runOnMainThread(() => { currentListeners?.onMessage?.(evt); })
+    currentListeners?.onMessage?.(evt);
   }
   override onError(error: string, requestId: string) {
     console.error('[UTS][SSE] onError', requestId, error)
     const evt: SSEErrorEvent = { requestId, error };
-    runOnMainThread(() => { currentListeners?.onError?.(evt); })
+    currentListeners?.onError?.(evt);
   }
   override onClose(requestId: string) {
     console.log('[UTS][SSE] onClose', requestId)
     const evt: SSECloseEvent = { requestId };
-    runOnMainThread(() => { currentListeners?.onClose?.(evt); })
+    currentListeners?.onClose?.(evt);
   }
 }
 
