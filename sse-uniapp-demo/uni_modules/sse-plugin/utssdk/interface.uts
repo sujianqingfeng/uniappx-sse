@@ -66,9 +66,7 @@ export type SSEApiErrorCode = 9020001 | 9020002 | 9020003;
 /**
  * SSE API 错误回调参数
  */
-export interface SSEApiFail extends IUniError {
-  errCode : SSEApiErrorCode
-};
+export interface SSEApiFail extends IUniError {};
 
 
 /* SSE 异步函数定义 */
@@ -109,8 +107,5 @@ export declare const closeAllSSEConnections: () => void;
  */
 export declare const createSSEError: (code: SSEApiErrorCode, message?: string) => SSEApiFail;
 
-/**
- * SayHi API - 用于测试原生库调用
- */
-export declare const sayHiApi: SayHiApi;
+// 注意：SayHi 示例 API 已移除，仅保留 SSE 相关接口
 
