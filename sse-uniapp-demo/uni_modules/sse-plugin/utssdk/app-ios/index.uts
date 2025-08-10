@@ -35,19 +35,12 @@ let sseDelegateRef : SSEDelegateHandler | null = null;
 // 初始化 SSE 管理器
 function getSSEManager() : SSEManager {
 	if (sseManager == null) {
-		console.log("[SSE DEBUG] Creating new SSEManager instance");
 		const manager = new SSEManager();
-		console.log("[SSE DEBUG] SSEManager created successfully");
 		if (sseDelegateRef == null) {
-			console.log("[SSE DEBUG] Creating persistent SSEDelegateHandler");
 			sseDelegateRef = new SSEDelegateHandler();
 		}
 		manager.delegate = sseDelegateRef as SSEDelegateHandler;
-		console.log("[SSE DEBUG] SSEDelegateHandler set successfully");
-		console.log("[SSE DEBUG] Delegate object type:", typeof sseDelegateRef);
-		console.log("[SSE DEBUG] Manager delegate after set:", manager.delegate != null ? "not null" : "null");
 		sseManager = manager;
-		console.log("[SSE DEBUG] SSEManager stored globally");
 	}
 	return sseManager as SSEManager;
 }
@@ -56,7 +49,6 @@ function getSSEManager() : SSEManager {
 // SSE 代理处理器，实现 SSEManagerDelegate 协议
 class SSEDelegateHandler implements SSEManagerDelegate {
 	constructor() {
-		console.log("[SSE DEBUG] SSEDelegateHandler constructor called");
 	}
 
 	// 接收到消息
@@ -137,27 +129,18 @@ export const sseConnectApi : SSEConnectApi = function (options : SSEConnectOptio
 		const manager = getSSEManager();
     const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
 
-    console.log("[SSE DEBUG] sseConnectApi called:", {
-      url: options.url,
-      requestId: requestId
-    });
-
 		// 调用 SSEFramework 的 startConnection 方法
 		const headers = options.headers != null ? options.headers : {};
-		console.log("[SSE DEBUG] Starting connection with headers:", headers);
 		manager.startConnection(options.url, headers, requestId);
 
 		const result : SSEConnectResult = {
 			requestId: requestId,
 			message: "Connection started"
 		};
-
-		console.log("[SSE DEBUG] Connection started, calling success callback");
 		options.success?.(result);
 		options.complete?.(result);
 
 	} catch (error) {
-		console.log("[SSE DEBUG] Error in sseConnectApi:", error);
 		const failError = createSSEError(9020001, "Failed to start SSE connection");
 		options.fail?.(failError);
 		options.complete?.(failError);
@@ -175,7 +158,6 @@ export const sseCloseApi : SSECloseApi = function (requestId : string) {
       manager.cancelConnection(requestId);
 		}
 	} catch (error) {
-		console.error('Error closing SSE connection:', 'Failed to close connection');
 	}
 };
 
@@ -185,9 +167,6 @@ export const sseCloseApi : SSECloseApi = function (requestId : string) {
  */
 @UTSJS.keepAlive
 export function sseAddEventListenerApi(options : SSEEventListenerOptions) : void {
-  console.log("[SSE DEBUG] sseAddEventListenerApi called:", {
-    options: options
-  });
   
   const reqId = options.requestId;
   if (reqId != null) {
@@ -202,10 +181,8 @@ export function sseAddEventListenerApi(options : SSEEventListenerOptions) : void
       merged.push(options);
       listenersByRequestId.set(reqId, merged);
     }
-    console.log('[SSE DEBUG] Added scoped listener for requestId:', reqId);
   } else {
     globalListeners.push(options);
-    console.log('[SSE DEBUG] Added global listener');
   }
 }
 
@@ -217,11 +194,9 @@ export const sseRemoveEventListenerApi : SSERemoveEventListenerApi = function (r
   if (requestId != null) {
     if (listenersByRequestId.has(requestId)) {
       listenersByRequestId.delete(requestId);
-      console.log('[SSE DEBUG] Removed listeners for requestId:', requestId);
     }
   } else {
     globalListeners = [];
-    console.log('[SSE DEBUG] Cleared global listeners');
   }
 };
 
