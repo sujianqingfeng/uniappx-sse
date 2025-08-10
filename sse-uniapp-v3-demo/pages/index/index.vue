@@ -239,7 +239,7 @@ export default {
     display: flex;
     flex-direction: column;
     position: relative;
-    height: 100%;
+    height: 100vh;
     overflow: hidden;
   }
 
@@ -271,7 +271,7 @@ export default {
   }
   .page-scroll {
     flex: 1 1 auto;
-    height: 0
+    min-height: 0;
   }
 
   .card {
