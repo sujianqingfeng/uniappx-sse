@@ -1,8 +1,0 @@
-{
-  "deploymentTarget": "12",
-  "permissions": {
-    "NSAppTransportSecurity": {
-      "NSAllowsArbitraryLoads": true
-    }
-  }
-}

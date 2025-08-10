@@ -16,10 +16,10 @@
 		"type": "uts",
 		"sale": {
 			"regular": {
-				"price": "0.00"
+				"price": "29.00"
 			},
 			"sourcecode": {
-				"price": "0.00"
+				"price": "299.00"
 			}
 		},
 		"contact": {
@@ -47,18 +47,18 @@
 			"client": {
 				"uni-app": {
 					"vue": {
-						"vue2": "-",
-						"vue3": "-"
+						"vue2": "✓",
+						"vue3": "✓"
 					},
 					"web": {
-						"safari": "-",
-						"chrome": "-"
+						"safari": "✓",
+						"chrome": "✓"
 					},
 					"app": {
-						"vue": "-",
+						"vue": "✓",
 						"nvue": "-",
-						"android": "-",
-						"ios": "-",
+						"android": "✓",
+						"ios": "✓",
 						"harmony": "-"
 					},
 					"mp": {
