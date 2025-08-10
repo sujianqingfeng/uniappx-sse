@@ -1,0 +1,225 @@
+/**
+ * Web 平台 SSE 实现（基于标准 EventSource）
+ */
+
+import {
+  SSEConnectOptions,
+  SSEConnectResult,
+  SSEMessageEvent,
+  SSEErrorEvent,
+  SSECloseEvent,
+  SSEEventListenerOptions,
+  SSEConnectApi,
+  SSECloseApi,
+  SSEAddEventListenerApi,
+  SSERemoveEventListenerApi
+} from '../interface.uts'
+
+import { createSSEError } from '../unierror.uts'
+
+// 连接实例管理（requestId -> EventSource）
+let sourcesByRequestId: Map<string, any> = new Map()
+
+// 事件监听器（按 requestId 存储）与全局监听器
+let listenersByRequestId: Map<string, SSEEventListenerOptions[]> = new Map()
+let globalListeners: SSEEventListenerOptions[] = []
+
+function notifyOpen(requestId: string): void {
+  const evt: SSEConnectResult = { requestId, message: 'Connection opened' }
+  const scoped = listenersByRequestId.get(requestId)
+  if (scoped != null) {
+    for (let i = 0; i < scoped.length; i++) {
+      const cb = scoped[i].onOpen
+      if (cb != null) cb(evt)
+    }
+  }
+  for (let i = 0; i < globalListeners.length; i++) {
+    const gcb = globalListeners[i].onOpen
+    if (gcb != null) gcb(evt)
+  }
+}
+
+function notifyMessage(requestId: string, message: string): void {
+  const evt: SSEMessageEvent = { requestId, message }
+  const scoped = listenersByRequestId.get(requestId)
+  if (scoped != null) {
+    for (let i = 0; i < scoped.length; i++) {
+      const cb = scoped[i].onMessage
+      if (cb != null) cb(evt)
+    }
+  }
+  for (let i = 0; i < globalListeners.length; i++) {
+    const gcb = globalListeners[i].onMessage
+    if (gcb != null) gcb(evt)
+  }
+}
+
+function notifyError(requestId: string, errorMessage: string): void {
+  const evt: SSEErrorEvent = { requestId, error: errorMessage }
+  const scoped = listenersByRequestId.get(requestId)
+  if (scoped != null) {
+    for (let i = 0; i < scoped.length; i++) {
+      const cb = scoped[i].onError
+      if (cb != null) cb(evt)
+    }
+  }
+  for (let i = 0; i < globalListeners.length; i++) {
+    const gcb = globalListeners[i].onError
+    if (gcb != null) gcb(evt)
+  }
+}
+
+function notifyClose(requestId: string): void {
+  const evt: SSECloseEvent = { requestId }
+  const scoped = listenersByRequestId.get(requestId)
+  if (scoped != null) {
+    for (let i = 0; i < scoped.length; i++) {
+      const cb = scoped[i].onClose
+      if (cb != null) cb(evt)
+    }
+  }
+  for (let i = 0; i < globalListeners.length; i++) {
+    const gcb = globalListeners[i].onClose
+    if (gcb != null) gcb(evt)
+  }
+  // 关闭后清理该 requestId 的监听器
+  if (listenersByRequestId.has(requestId)) {
+    listenersByRequestId.delete(requestId)
+  }
+}
+
+/**
+ * SSE 连接 API（Web）
+ */
+export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
+  try {
+    const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`
+
+    // 环境校验：浏览器必须支持 EventSource
+    const hasEventSource = (typeof (globalThis as any).EventSource !== 'undefined')
+    if (!hasEventSource) {
+      const failError = createSSEError(9020001, 'EventSource is not supported in this environment')
+      options.fail?.(failError)
+      options.complete?.(failError)
+      return
+    }
+
+    // 若已存在同 id 连接，先关闭
+    const existing = sourcesByRequestId.get(requestId)
+    if (existing != null) {
+      try { (existing as any).close() } catch (_) {}
+      sourcesByRequestId.delete(requestId)
+    }
+
+    // Web 平台不支持通过 EventSource 传递自定义 headers，这里忽略 headers
+    if (options.headers != null) {
+      console.log('[UTS][SSE][WEB] headers are not supported by EventSource and will be ignored')
+    }
+
+    const url = options.url
+    console.log('[UTS][SSE][WEB] creating EventSource:', url, 'requestId=', requestId)
+
+    // 创建连接并注册事件
+    const SourceCtor: any = (globalThis as any).EventSource
+    const src: any = new SourceCtor(url)
+    sourcesByRequestId.set(requestId, src)
+
+    src.onopen = function () {
+      console.log('[UTS][SSE][WEB] onopen', requestId)
+      notifyOpen(requestId)
+    }
+    src.onmessage = function (e: any) {
+      const dataStr: string = e != null && e.data != null ? ('' + e.data) : ''
+      // 控制日志长度，避免过长数据
+      const preview = dataStr.length > 200 ? (dataStr.substring(0, 200) + '…') : dataStr
+      console.log('[UTS][SSE][WEB] onmessage', requestId, 'len=', dataStr.length, 'preview=', preview)
+      notifyMessage(requestId, dataStr)
+    }
+    src.onerror = function (_e: any) {
+      // 标准行为：网络中断会自动重连，只有在主动 close 后 readyState 变为 CLOSED
+      console.error('[UTS][SSE][WEB] onerror', requestId)
+      notifyError(requestId, 'EventSource error')
+    }
+
+    const result: SSEConnectResult = { requestId, message: 'Connection started' }
+    options.success?.(result)
+    options.complete?.(result)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to start SSE connection'
+    console.error('[UTS][SSE][WEB] sseConnectApi error:', errorMessage)
+    const failError = createSSEError(9020001, errorMessage)
+    options.fail?.(failError)
+    options.complete?.(failError)
+  }
+}
+
+/**
+ * SSE 关闭连接 API（Web）
+ */
+export const sseCloseApi: SSECloseApi = function (requestId: string) {
+  try {
+    const src = sourcesByRequestId.get(requestId)
+    if (src != null) {
+      console.log('[UTS][SSE][WEB] close', requestId)
+      try { (src as any).close() } catch (_) {}
+      sourcesByRequestId.delete(requestId)
+      notifyClose(requestId)
+    }
+  } catch (error) {
+    const errorMessage: string = error instanceof Error ? error.message : (error != null ? ('' + (error as any)) : 'Unknown error')
+    console.error('[UTS][SSE][WEB] Error closing SSE connection:', errorMessage)
+  }
+}
+
+/**
+ * SSE 添加事件监听器 API（Web）
+ */
+@UTSJS.keepAlive
+export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
+  const reqId = options.requestId
+  if (reqId != null) {
+    const list = listenersByRequestId.get(reqId)
+    if (list == null) {
+      listenersByRequestId.set(reqId, [options])
+    } else {
+      const merged: SSEEventListenerOptions[] = []
+      for (let i = 0; i < list.length; i++) merged.push(list[i])
+      merged.push(options)
+      listenersByRequestId.set(reqId, merged)
+    }
+  } else {
+    globalListeners.push(options)
+  }
+}
+
+/**
+ * SSE 移除事件监听器 API（Web）
+ */
+export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
+  if (requestId != null) {
+    if (listenersByRequestId.has(requestId)) {
+      listenersByRequestId.delete(requestId)
+      console.log('[UTS][SSE][WEB] removed listeners for requestId:', requestId)
+    }
+  } else {
+    globalListeners = []
+    console.log('[UTS][SSE][WEB] cleared global listeners')
+  }
+}
+
+/**
+ * 关闭所有 SSE 连接（Web）
+ */
+export function closeAllSSEConnections(): void {
+  for (const entry of sourcesByRequestId) {
+    const id = entry[0]
+    const src = entry[1]
+    try { (src as any).close() } catch (_) {}
+    notifyClose(id)
+  }
+  sourcesByRequestId.clear()
+  listenersByRequestId.clear()
+  globalListeners = []
+}
+
+
