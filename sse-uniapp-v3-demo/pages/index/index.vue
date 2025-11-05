@@ -81,7 +81,7 @@
 </template>
 
 <script>
-import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from '@/uni_modules/sse-plugin'
+import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from '@/uni_modules/hens-sse'
 
 export default {
   data() {

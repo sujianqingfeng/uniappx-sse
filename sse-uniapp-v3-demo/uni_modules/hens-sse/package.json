@@ -1,0 +1,28 @@
+{
+    "id": "hens-sse",
+    "name": "SSE原生实现，支持uniapp和uniappx，支持三端",
+    "displayName": "SSE原生实现，支持uniapp和uniappx，支持三端",
+    "version": "1.0.0",
+    "description": "SSE原生实现，支持uniapp和uniappx，支持ios、android、web，可解决用 renderjs 实现 sse 的一些场景限制。",
+    "keywords": [
+        "sse",
+        "uts",
+        "uniapp",
+        "uniappx"
+    ],
+    "dcloudext": {
+        "type": "uts",
+        "sale": {
+            "regular": {
+                "price": "29.00"
+            },
+            "sourcecode": {
+                "price": "299.00"
+            }
+        }
+    },
+    "uni_modules": {
+        "dependencies": [],
+        "encrypt": []
+    }
+}
