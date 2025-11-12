@@ -1,0 +1,213 @@
+/**
+ * 引用 iOS 系统库和 SSEFramework
+ */
+import {
+	SSEConnectOptions,
+	SSEConnectResult,
+	SSEMessageEvent,
+	SSEErrorEvent,
+	SSECloseEvent,
+	SSEEventListenerOptions,
+	SSEConnectApi,
+	SSECloseApi,
+	SSEAddEventListenerApi,
+	SSERemoveEventListenerApi
+} from '../interface.uts';
+
+import { createSSEError } from '../unierror.uts';
+
+/**
+ * 引入 SSEFramework
+ * Framework 位于 ./Frameworks 目录下
+ */
+//import { SSEManager, SSEManagerDelegate } from 'SSEFramework';
+
+// 全局 SSE 管理器实例
+let sseManager : SSEManager | null = null;
+
+// 多连接监听器存储
+let listenersByRequestId : Map<string, SSEEventListenerOptions[]> = new Map();
+let globalListeners : SSEEventListenerOptions[] = [];
+
+// 持有委托的全局强引用，避免被释放
+let sseDelegateRef : SSEDelegateHandler | null = null;
+
+// 初始化 SSE 管理器
+function getSSEManager() : SSEManager {
+	if (sseManager == null) {
+		const manager = new SSEManager();
+		if (sseDelegateRef == null) {
+			sseDelegateRef = new SSEDelegateHandler();
+		}
+		manager.delegate = sseDelegateRef as SSEDelegateHandler;
+		sseManager = manager;
+	}
+	return sseManager as SSEManager;
+}
+
+
+// SSE 代理处理器，实现 SSEManagerDelegate 协议
+class SSEDelegateHandler implements SSEManagerDelegate {
+	constructor() {
+	}
+
+	// 接收到消息
+	sseManagerMessage(manager: SSEManager, message: string, requestId: string) {
+    const event: SSEMessageEvent = { requestId: requestId, message: message };
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onMessage;
+        if (cb != null) { cb(event); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onMessage;
+      if (gcb != null) { gcb(event); }
+    }
+	}
+
+	// 连接打开
+	sseManagerOpen(manager: SSEManager, requestId: string) {
+    const event: SSEConnectResult = { requestId: requestId, message: "Connection opened" };
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onOpen;
+        if (cb != null) { cb(event); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onOpen;
+      if (gcb != null) { gcb(event); }
+    }
+	}
+
+	// 连接错误
+	sseManagerError(manager: SSEManager, errorMessage: string, requestId: string) {
+    const event: SSEErrorEvent = { requestId: requestId, error: errorMessage };
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onError;
+        if (cb != null) { cb(event); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onError;
+      if (gcb != null) { gcb(event); }
+    }
+	}
+
+	// 连接关闭
+	sseManagerClose(manager: SSEManager, requestId: string) {
+    const event: SSECloseEvent = { requestId: requestId };
+    const list = listenersByRequestId.get(requestId);
+    if (list != null) {
+      for (let i = 0; i < list.length; i++) {
+        const cb = list[i].onClose;
+        if (cb != null) { cb(event); }
+      }
+    }
+    for (let i = 0; i < globalListeners.length; i++) {
+      const gcb = globalListeners[i].onClose;
+      if (gcb != null) { gcb(event); }
+    }
+    // 关闭后清理该 requestId 的监听器
+    if (listenersByRequestId.has(requestId)) {
+      listenersByRequestId.delete(requestId);
+    }
+	}
+}
+
+/**
+ * SSE 连接 API
+ * 调用 SSEFramework 的 startConnection 方法
+ */
+export const sseConnectApi : SSEConnectApi = function (options : SSEConnectOptions) {
+	try {
+		const manager = getSSEManager();
+    const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
+
+		// 调用 SSEFramework 的 startConnection 方法
+		const headers = options.headers != null ? options.headers : {};
+		manager.startConnection(options.url, headers, requestId);
+
+		const result : SSEConnectResult = {
+			requestId: requestId,
+			message: "Connection started"
+		};
+		options.success?.(result);
+		options.complete?.(result);
+
+	} catch (error) {
+		const failError = createSSEError(9020001, "Failed to start SSE connection");
+		options.fail?.(failError);
+		options.complete?.(failError);
+	}
+};
+
+/**
+ * SSE 关闭连接 API
+ * 调用 SSEFramework 的 cancelConnection 方法
+ */
+export const sseCloseApi : SSECloseApi = function (requestId : string) {
+	try {
+		const manager = getSSEManager();
+		if (manager != null) {
+      manager.cancelConnection(requestId);
+		}
+	} catch (error) {
+	}
+};
+
+/**
+ * SSE 添加事件监听器 API
+ * 为指定连接添加事件监听器
+ */
+@UTSJS.keepAlive
+export function sseAddEventListenerApi(options : SSEEventListenerOptions) : void {
+  
+  const reqId = options.requestId;
+  if (reqId != null) {
+    const list = listenersByRequestId.get(reqId);
+    if (list == null) {
+      listenersByRequestId.set(reqId, [options]);
+    } else {
+      const merged : SSEEventListenerOptions[] = [];
+      for (let i = 0; i < list.length; i++) {
+        merged.push(list[i]);
+      }
+      merged.push(options);
+      listenersByRequestId.set(reqId, merged);
+    }
+  } else {
+    globalListeners.push(options);
+  }
+}
+
+/**
+ * SSE 移除事件监听器 API
+ * 移除指定连接的事件监听器
+ */
+export const sseRemoveEventListenerApi : SSERemoveEventListenerApi = function (requestId ?: string) {
+  if (requestId != null) {
+    if (listenersByRequestId.has(requestId)) {
+      listenersByRequestId.delete(requestId);
+    }
+  } else {
+    globalListeners = [];
+  }
+};
+
+/**
+ * 关闭所有 SSE 连接
+ */
+export function closeAllSSEConnections() : void {
+	const manager = getSSEManager();
+	if (manager != null) {
+    manager.cancelAllConnections();
+    listenersByRequestId.clear();
+    globalListeners = [];
+	}
+}

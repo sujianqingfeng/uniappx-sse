@@ -24,7 +24,7 @@ import {
   sseCloseApi, 
   sseAddEventListenerApi, 
   sseRemoveEventListenerApi 
-} from '@/uni_modules/sse-plugin'
+} from '@/uni_modules/hens-sse'
 
 const requestId = `sse_${Date.now()}`
 

@@ -1,0 +1,111 @@
+/**
+ * interface.uts
+ * uts插件接口定义文件，按规范定义接口文件可以在HBuilderX中更好的做到语法提示
+ */
+
+/**
+ * SSE 连接选项
+ */
+export type SSEConnectOptions = {
+  url : string
+  headers ?: UTSJSONObject
+  requestId ?: string
+  success ?: (res : SSEConnectResult) => void
+  fail ?: (res : SSEApiFail) => void
+  complete ?: (res : any) => void
+}
+
+/**
+ * SSE 连接结果
+ */
+export type SSEConnectResult = {
+  requestId : string
+  message : string
+}
+
+/**
+ * SSE 消息事件
+ */
+export type SSEMessageEvent = {
+  requestId : string
+  message : string
+}
+
+/**
+ * SSE 错误事件
+ */
+export type SSEErrorEvent = {
+  requestId : string
+  error : string
+}
+
+/**
+ * SSE 关闭事件
+ */
+export type SSECloseEvent = {
+  requestId : string
+}
+
+/**
+ * SSE 事件监听器选项
+ */
+export type SSEEventListenerOptions = {
+  requestId ?: string
+  onMessage ?: (event : SSEMessageEvent) => void
+  onError ?: (event : SSEErrorEvent) => void
+  onClose ?: (event : SSECloseEvent) => void
+  onOpen ?: (event : SSEConnectResult) => void
+}
+
+
+/**
+ * SSE 错误码
+ */
+export type SSEApiErrorCode = 9020001 | 9020002 | 9020003;
+
+/**
+ * SSE API 错误回调参数
+ */
+export interface SSEApiFail extends IUniError {};
+
+
+/* SSE 异步函数定义 */
+export type SSEConnectApi = (options : SSEConnectOptions) => void
+export type SSECloseApi = (requestId : string) => void
+export type SSEAddEventListenerApi = (options : SSEEventListenerOptions) => void
+export type SSERemoveEventListenerApi = (requestId ?: string) => void
+
+
+/**
+ * SSE 连接 API
+ */
+export declare const sseConnectApi: SSEConnectApi;
+
+/**
+ * SSE 关闭连接 API
+ */
+export declare const sseCloseApi: SSECloseApi;
+
+/**
+ * SSE 添加事件监听器 API
+ */
+export declare const sseAddEventListenerApi: SSEAddEventListenerApi;
+
+/**
+ * SSE 移除事件监听器 API
+ */
+export declare const sseRemoveEventListenerApi: SSERemoveEventListenerApi;
+
+/**
+ * 关闭所有 SSE 连接
+ */
+export declare const closeAllSSEConnections: () => void;
+
+/**
+ * 创建 SSE 错误对象
+ * 从 unierror.uts 导入
+ */
+export declare const createSSEError: (code: SSEApiErrorCode, message?: string) => SSEApiFail;
+
+// 注意：SayHi 示例 API 已移除，仅保留 SSE 相关接口
+
