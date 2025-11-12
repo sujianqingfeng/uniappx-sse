@@ -18,6 +18,8 @@ export const SSEAPIErrors : Map<SSEApiErrorCode, string> = new Map([
   [9020001, 'Failed to start SSE connection'],
   [9020002, 'SSE connection error'],
   [9020003, 'Invalid SSE URL'],
+  [9020004, '前台服务需要通知权限，请检查权限设置'],
+  [9020005, '前台服务配置失败'],
 ]);
 
 

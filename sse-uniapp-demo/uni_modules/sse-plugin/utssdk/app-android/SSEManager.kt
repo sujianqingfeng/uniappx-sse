@@ -11,6 +11,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import android.content.Context
+import io.dcloud.uts.UTSAndroid
+import io.dcloud.uts.console
 
 class SSEManager private constructor() {
     private val TAG = "SSEManager"
@@ -63,9 +67,13 @@ class SSEManager private constructor() {
         val isCancelled = AtomicBoolean(false)
         @Volatile var connection: HttpURLConnection? = null
         @Volatile var thread: Thread? = null
+        @Volatile var useForeground: Boolean = false
     }
 
     private val connections = ConcurrentHashMap<String, ConnectionHandle>()
+    
+    // 前台服务引用计数
+    private val fgRefCount = AtomicInteger(0)
 
     companion object {
         @Volatile
@@ -158,17 +166,70 @@ class SSEManager private constructor() {
     }
 
     /**
+     * 新增重载：支持前台服务开关和 WakeLock 配置
+     */
+    fun startConnectionWithHeadersJson(url: String, headersJson: String?, requestId: String, callback: SSECallback, useForeground: Boolean, wakeLockEnabled: Boolean) {
+        val parsed = parseHeadersJson(headersJson)
+        startConnection(url, parsed, requestId, callback, useForeground, wakeLockEnabled)
+    }
+
+    /**
      * 开始 SSE 连接（使用 HttpURLConnection 实现）
      */
     fun startConnection(url: String, headers: Map<String, Any?>?, requestId: String, callback: SSECallback) {
+        startConnection(url, headers, requestId, callback, false, true)
+    }
+
+    /**
+     * 开始 SSE 连接（支持前台服务配置）
+     */
+    fun startConnection(url: String, headers: Map<String, Any?>?, requestId: String, callback: SSECallback, useForeground: Boolean, wakeLockEnabled: Boolean) {
         logInfo("startConnection(): requestId=$requestId, url=$url, headersKeys=${headers?.keys}")
         if (connections.containsKey(requestId)) {
             logWarn("已存在 requestId 为 $requestId 的连接")
             return
         }
 
-        val handle = ConnectionHandle()
+        val handle = ConnectionHandle().apply { this.useForeground = useForeground }
         connections[requestId] = handle
+
+        // 前台服务管理
+        if (useForeground) {
+            val count = fgRefCount.incrementAndGet()
+            console.log("[SSEManager] 前台服务计数增加: $count (requestId=$requestId)")
+            if (count == 1) {
+                // 首个前台服务连接，启动服务
+                try {
+                    val activity = UTSAndroid.getUniActivity() ?: throw Exception("无法获取 Activity 上下文")
+                    console.log("[SSEManager] 获取到 Activity: ${activity.javaClass.name}")
+                    val context = activity as Context
+                    console.log("[SSEManager] Context 类型: ${context.javaClass.name}")
+                    console.log("[SSEManager] 准备启动前台服务 (wakeLock=$wakeLockEnabled)")
+                    
+                    // 检查 Service 类是否可加载
+                    try {
+                        val serviceClass = SseForegroundService::class.java
+                        console.log("[SSEManager] Service 类名: ${serviceClass.name}")
+                    } catch (e: Exception) {
+                        console.log("[SSEManager] ⚠️ 无法加载 Service 类: ${e.message}")
+                    }
+                    
+                    SseForegroundService.start(context, wakeLockEnabled)
+                    console.log("[SSEManager] ✅ 前台服务已启动")
+                    logInfo("前台服务已启动 (useForeground=$useForeground, wakeLock=$wakeLockEnabled)")
+                } catch (e: Exception) {
+                    console.log("[SSEManager] ❌ 启动前台服务失败: ${e.message}")
+                    console.log("[SSEManager] 异常堆栈: ${e.stackTraceToString()}")
+                    logError("启动前台服务失败", e)
+                    // 回滚计数
+                    fgRefCount.decrementAndGet()
+                    handle.useForeground = false
+                }
+            } else {
+                console.log("[SSEManager] 前台服务已在运行，计数: $count")
+                logDebug("前台服务计数增加: $count")
+            }
+        }
 
         val worker = Thread {
             try {
@@ -266,6 +327,31 @@ class SSEManager private constructor() {
                 }
                 try { postToMain { callback.onError(e.message ?: e.toString(), requestId) } } catch (_: Exception) { }
             } finally {
+                // 清理前台服务计数
+                if (handle.useForeground) {
+                    val count = fgRefCount.decrementAndGet()
+                    console.log("[SSEManager] 前台服务计数减少: $count (requestId=$requestId)")
+                    if (count <= 0) {
+                        // 无前台服务连接，停止服务
+                        try {
+                            val activity = UTSAndroid.getUniActivity()
+                            if (activity != null) {
+                                val context = activity as Context
+                                console.log("[SSEManager] 准备停止前台服务")
+                                SseForegroundService.stop(context)
+                                console.log("[SSEManager] ✅ 前台服务已停止")
+                                logInfo("前台服务已停止")
+                            }
+                        } catch (e: Exception) {
+                            console.log("[SSEManager] ❌ 停止前台服务失败: ${e.message}")
+                            logError("停止前台服务失败", e)
+                        }
+                    } else {
+                        console.log("[SSEManager] 前台服务仍有 $count 个连接，保持运行")
+                        logDebug("前台服务计数减少: $count")
+                    }
+                }
+                
                 logInfo("[$requestId] 准备关闭连接与清理资源 ...")
                 try {
                     handle.connection?.disconnect()

@@ -10,6 +10,15 @@ export type SSEConnectOptions = {
   url : string
   headers ?: UTSJSONObject
   requestId ?: string
+  // 前台服务配置
+  foregroundEnabled ?: boolean
+  foregroundChannelId ?: string
+  foregroundChannelName ?: string
+  foregroundTitle ?: string
+  foregroundText ?: string
+  foregroundImportance ?: 'min'|'low'|'default'|'high'|'max'
+  notifications ?: true | false | 'auto'
+  wakeLockEnabled ?: boolean
   success ?: (res : SSEConnectResult) => void
   fail ?: (res : SSEApiFail) => void
   complete ?: (res : any) => void
@@ -61,7 +70,7 @@ export type SSEEventListenerOptions = {
 /**
  * SSE 错误码
  */
-export type SSEApiErrorCode = 9020001 | 9020002 | 9020003;
+export type SSEApiErrorCode = 9020001 | 9020002 | 9020003 | 9020004 | 9020005;
 
 /**
  * SSE API 错误回调参数

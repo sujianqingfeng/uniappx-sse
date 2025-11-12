@@ -18,6 +18,7 @@
 - 事件监听：支持全局与按连接监听（open/message/error/close）
 - 自定义请求头：与浏览器一致地过滤受限头名
 - Android 模拟器：自动将 `localhost/127.0.0.1/[::1]` 映射为 `10.0.2.2`
+- **新增**：Android 前台服务保活，支持后台长时间连接
 - 简单易用：统一的 UTS 接口定义，`uvue/ts/js` 直接调用
 
 
@@ -81,6 +82,13 @@ sseConnectApi({
   url: 'http://localhost:3000/sse',
   requestId,
   headers: { 'User-Agent': 'UniApp-SSE-Plugin' },
+  // 前台服务配置（Android）
+  foregroundEnabled: true,
+  notifications: 'auto',
+  wakeLockEnabled: true,
+  foregroundTitle: 'SSE 正在保持连接',
+  foregroundText: '后台保持连接以接收消息',
+  foregroundImportance: 'low',
   fail: (err) => console.error('connect fail', err)
 })
 
@@ -101,6 +109,15 @@ export type SSEConnectOptions = {
   url: string
   headers?: UTSJSONObject
   requestId?: string
+  // 前台服务配置
+  foregroundEnabled?: boolean
+  foregroundChannelId?: string
+  foregroundChannelName?: string
+  foregroundTitle?: string
+  foregroundText?: string
+  foregroundImportance?: 'min'|'low'|'default'|'high'|'max'
+  notifications?: true | false | 'auto'
+  wakeLockEnabled?: boolean
   success?: (res: SSEConnectResult) => void
   fail?: (res: SSEApiFail) => void
   complete?: (res: any) => void

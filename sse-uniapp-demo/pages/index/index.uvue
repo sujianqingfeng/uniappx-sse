@@ -19,6 +19,44 @@
             <input class="input-field" v-model="serverUrl" :placeholder="placeholderText" />
           </view>
 
+          <!-- 前台服务配置 -->
+          <view class="foreground-section">
+            <text class="section-title">前台服务保活 (Android)</text>
+            <view class="switch-row">
+              <text class="switch-label">启用前台服务:</text>
+              <switch v-model="enableForeground" color="#007aff" />
+            </view>
+            
+            <view class="switch-row" v-if="enableForeground">
+              <text class="switch-label">启用 WakeLock:</text>
+              <switch v-model="wakeLockEnabled" color="#007aff" />
+            </view>
+            
+            <view class="switch-row" v-if="enableForeground">
+              <text class="switch-label">通知重要性:</text>
+              <view class="picker-buttons">
+                <view 
+                  class="picker-btn" 
+                  :class="{ active: (importanceIndex as number) == 0 }" 
+                  @click="setImportance(0)">
+                  <text>低</text>
+                </view>
+                <view 
+                  class="picker-btn" 
+                  :class="{ active: (importanceIndex as number) == 1 }" 
+                  @click="setImportance(1)">
+                  <text>默认</text>
+                </view>
+                <view 
+                  class="picker-btn" 
+                  :class="{ active: (importanceIndex as number) == 2 }" 
+                  @click="setImportance(2)">
+                  <text>高</text>
+                </view>
+              </view>
+            </view>
+          </view>
+
           <view class="button-group">
             <view class="btn btn-primary" @click="addConnection">
               <text class="btn-text text-strong">添加连接</text>
@@ -36,6 +74,7 @@
         <view class="card" v-for="item in connections" :key="item.requestId">
           <text class="card-title">连接 {{ shortId(item.requestId) }}</text>
           <text class="card-description text-wrap">{{ item.url }}</text>
+          <text class="foreground-status" v-if="item.foregroundEnabled">🔒 前台服务</text>
 
           <view class="button-group">
             <view class="btn btn-primary" @click="connectConnection(item.requestId)" v-if="!item.isConnected">
@@ -60,7 +99,7 @@
               <text class="message-time">{{ msg.time }}</text>
               <text class="message-content text-wrap">{{ msg.content }}</text>
             </view>
-            <text class="no-messages" v-if="item.messages.length === 0">等待消息...</text>
+            <text class="no-messages" v-if="(item.messages.length as number) == 0">等待消息...</text>
           </view>
         </view>
 
@@ -93,6 +132,7 @@ type Connection = {
   isConnected: boolean
   status: string
   messages: Message[]
+  foregroundEnabled: boolean  // 新增前台服务配置
 }
 
 export default {
@@ -109,6 +149,14 @@ export default {
       resultMessage: '',
       serverUrl: defaultUrl,
       placeholderText: defaultUrl,
+      // 前台服务配置
+      enableForeground: true,  // 改为 true，方便测试前台服务
+      foregroundTitle: 'SSE 正在保持连接',
+      foregroundText: '后台保持连接以接收消息',
+      foregroundImportance: 'low',
+      wakeLockEnabled: true,
+      notifications: 'auto',
+      importanceIndex: 0,
         connections: [] as Connection[]
     }
   },
@@ -127,6 +175,24 @@ export default {
       return id.length > 8 ? id.slice(0, 4) + '…' + id.slice(-3) : id;
     },
 
+    // 设置通知重要性
+    setImportance(index: number) {
+      this.importanceIndex = index;
+      const importanceOptions = ['low', 'default', 'high'];
+      this.foregroundImportance = importanceOptions[index];
+      this.resultMessage = `通知重要性: ${['低', '默认', '高'][index]}`;
+    },
+
+    // 获取通知重要性值
+    getImportanceValue(): 'min' | 'low' | 'default' | 'high' | 'max' {
+      switch (this.importanceIndex) {
+        case 0: return 'low';
+        case 1: return 'default';
+        case 2: return 'high';
+        default: return 'low';
+      }
+    },
+
     // 添加连接
     addConnection() {
       if (this.serverUrl.length === 0) {
@@ -134,13 +200,16 @@ export default {
         return;
       }
       const requestId = `sse_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      console.log(`[addConnection] enableForeground=${this.enableForeground}, wakeLock=${this.wakeLockEnabled}`);
       this.connections.unshift({
         requestId,
         url: this.serverUrl,
         isConnected: false,
         status: '待连接',
-        messages: []
+        messages: [],
+        foregroundEnabled: this.enableForeground as boolean // 明确类型转换
       });
+      console.log(`[addConnection] 连接已添加，foregroundEnabled=${this.enableForeground}`);
       this.resultMessage = `已添加连接：${requestId}`;
     },
 
@@ -177,15 +246,45 @@ export default {
         this.connections[idx].url = finalUrl;
         this.connections[idx].status = '检测到 Android 环境，已将 localhost 映射为 10.0.2.2';
       }
-      sseConnectApi({
-        url: finalUrl,
-        requestId: conn.requestId,
-        headers: { 'User-Agent': 'UniApp-X-SSE-Plugin' },
-        fail: (err) => {
-          conn.status = `连接失败: ${JSON.stringify(err)}`;
-        },
-        complete: () => {}
-      });
+      
+      // 构建连接选项
+      const url = finalUrl;
+      const id = conn.requestId;
+      const headers = { 'User-Agent': 'UniApp-X-SSE-Plugin' };
+      const failCallback = (err: any) => {
+        conn.status = `连接失败: ${JSON.stringify(err)}`;
+      };
+      const completeCallback = (res: any) => {};
+      
+      // 检查是否启用前台服务
+      console.log(`[connectConnection] requestId=${id}, foregroundEnabled=${conn.foregroundEnabled}`);
+      if (conn.foregroundEnabled === true) {
+        console.log(`[connectConnection] 使用前台服务连接`);
+        // 启用前台服务的连接选项
+        sseConnectApi({
+          url: url,
+          requestId: id,
+          headers: headers,
+          fail: failCallback,
+          complete: completeCallback,
+          foregroundEnabled: true,
+          wakeLockEnabled: this.wakeLockEnabled,
+          notifications: this.notifications,
+          foregroundTitle: this.foregroundTitle,
+          foregroundText: this.foregroundText,
+          foregroundImportance: this.getImportanceValue()
+        });
+      } else {
+        console.log(`[connectConnection] 使用普通连接（前台服务未启用）`);
+        // 普通连接选项
+        sseConnectApi({
+          url: url,
+          requestId: id,
+          headers: headers,
+          fail: failCallback,
+          complete: completeCallback
+        });
+      }
     },
 
     // 断开指定连接
@@ -500,5 +599,74 @@ export default {
     font-size: 13px;
     color: #666666;
     line-height: 1.5;
+  }
+
+  /* 前台服务相关样式 */
+  .foreground-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+    display: block;
+  }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .switch-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .switch-label {
+    font-size: 14px;
+    color: #333;
+  }
+
+  .picker-btn {
+    padding: 8px 12px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 0 4px;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .picker-btn.active {
+    background-color: #007aff;
+    border-color: #007aff;
+  }
+
+  .picker-btn.active text {
+    color: #fff;
+  }
+
+  .picker-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    flex: 1;
+  }
+
+  .foreground-status {
+    font-size: 12px;
+    color: #007aff;
+    background: #e3f2fd;
+    padding: 4px 8px;
+    border-radius: 12px;
+    display: inline-block;
+    margin-bottom: 8px;
   }
 </style>
