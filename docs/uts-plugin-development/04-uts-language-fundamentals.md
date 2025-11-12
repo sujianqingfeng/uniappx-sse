@@ -1,10 +1,5 @@
 # UTS语言基础指南
 
-> 同步说明（来源：官方文档）
-> - 关联页面：UTS 语法总览（数据类型/函数/类/接口/泛型等）
-> - 同步时间：2025-09-13
-> - 提示：平台特定强类型案例与 typeof/instanceof 差异，请结合《07 Android 增强》《10 数据类型》交叉查阅。
-
 ## 概述
 
 UTS (Uni Type Script) 是DCloud为uni-app生态系统开发的跨平台、高性能、强类型的现代编程语言。它能够编译到多个目标平台的原生语言，实现真正的跨平台开发。
@@ -545,12 +540,6 @@ function processValue(input: string | null) {
 ```
 
 ### 类型断言
-
-### 类型判断要点补充
-
-- `typeof` 判定数组会返回 `"object"`，请使用 `Array.isArray(obj)` 或 `obj instanceof Array` 判定数组。
-- 针对返回 JSON 的接口（如网络请求），可将返回值断言为 `UTSJSONObject` 并结合 `instanceof` 辅助判断。
-- 平台 API 若对参数类型有强约束（如 Android 需要 `Int`），须使用明确类型，避免用广义 `Number` 造成编译或运行问题。参见《Android平台UTS开发增强指南》。
 
 ```typescript
 // 类型断言

@@ -1,215 +1,806 @@
 # Android平台UTS开发增强指南
 
-> 同步说明（来源：官方文档）
-> - 对齐页面：uts for Android（https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html）与 UTSAndroid API（https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html）
-> - 同步时间：2025-09-13
-> - 重要更新：
->   - HBuilderX 4.81 起统一升级 Kotlin 2.2.0（请按官方“kotlin2 升级注意事项”适配）
->   - HBuilderX 4.36+：`app-android/config.json` 支持 `project.repositories`
->   - Android 最低 `minSdkVersion` = 21
+## Android特有开发细节补充
 
-## 包名默认规则（重要）
+### UTSAndroid工具类详解
 
-UTS 插件在 Android 侧会对应一个 lib module，若未显式指定包名，HBuilderX 会按如下规则生成默认包名：
+UTSAndroid是UTS提供的Android平台专用工具类，提供了丰富的原生能力访问接口：
 
-- `utssdk` 根下插件：`uts.sdk.{插件目录名（转驼峰）}`
-- `uni_modules/{pluginId}/utssdk` 下插件：`uts.sdk.modules.{插件目录名（转驼峰）}`
+```typescript
+// #ifdef APP-ANDROID
 
-示例：
-- `uni_modules/uni-getbatteryinfo/utssdk/app-android/` → `uts.sdk.modules.uniGetbatteryinfo`
-- `uni_modules/uts-nativepage/utssdk/app-android/` → `uts.sdk.modules.utsNativepage`
+/**
+ * UTSAndroid核心工具类使用
+ */
+export class UTSAndroidHelper {
+    
+    /**
+     * 获取应用上下文
+     */
+    static getAppContext(): Context {
+        return UTSAndroid.getAppContext() as Context
+    }
+    
+    /**
+     * 获取当前Activity
+     */
+    static getUniActivity(): Activity {
+        return UTSAndroid.getUniActivity()!
+    }
+    
+    /**
+     * 线程调度器使用
+     */
+    static runOnIOThread(task: () => void): void {
+        UTSAndroid.getDispatcher("io").async(function(_) {
+            task()
+        }, null)
+    }
+    
+    static runOnMainThread(task: () => void): void {
+        UTSAndroid.getDispatcher("main").async(function(_) {
+            task()
+        }, null)
+    }
+    
+    static runOnDefaultThread(task: () => void): void {
+        UTSAndroid.getDispatcher("default").async(function(_) {
+            task()
+        }, null)
+    }
+    
+    /**
+     * 权限管理
+     */
+    static requestPermission(
+        permissions: Array<string>, 
+        callback: (allGranted: boolean, grantedList: Array<string>) => void
+    ): void {
+        UTSAndroid.requestSystemPermission(
+            UTSAndroid.getUniActivity()!,
+            permissions,
+            function(allGranted: boolean, grantedList: Array<string>) {
+                callback(allGranted, grantedList)
+            },
+            function(doNotAskAgain: boolean, grantedList: Array<string>) {
+                callback(false, grantedList)
+            }
+        )
+    }
+    
+    /**
+     * 检查单个权限
+     */
+    static hasPermission(permission: string): boolean {
+        const context = this.getAppContext()
+        return context.checkSelfPermission(permission) == 
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+    
+    /**
+     * 检查多个权限
+     */
+    static hasPermissions(permissions: Array<string>): boolean {
+        return permissions.every(permission => this.hasPermission(permission))
+    }
+    
+    /**
+     * 获取应用信息
+     */
+    static getAppInfo(): any {
+        const context = this.getAppContext()
+        const packageManager = context.getPackageManager()
+        const packageInfo = packageManager.getPackageInfo(context.getPackageName(), 0)
+        
+        return {
+            packageName: context.getPackageName(),
+            versionName: packageInfo.versionName,
+            versionCode: packageInfo.versionCode,
+            targetSdkVersion: packageInfo.applicationInfo?.targetSdkVersion || 0
+        }
+    }
+    
+    /**
+     * 获取设备信息
+     */
+    static getDeviceInfo(): any {
+        return {
+            brand: android.os.Build.BRAND,
+            model: android.os.Build.MODEL,
+            device: android.os.Build.DEVICE,
+            product: android.os.Build.PRODUCT,
+            hardware: android.os.Build.HARDWARE,
+            manufacturer: android.os.Build.MANUFACTURER,
+            version: {
+                release: android.os.Build.VERSION.RELEASE,
+                sdkInt: android.os.Build.VERSION.SDK_INT,
+                codename: android.os.Build.VERSION.CODENAME
+            }
+        }
+    }
+    
+    /**
+     * 获取屏幕信息
+     */
+    static getScreenInfo(): any {
+        const context = this.getAppContext()
+        const resources = context.getResources()
+        const metrics = resources.getDisplayMetrics()
+        const configuration = resources.getConfiguration()
+        
+        return {
+            widthPixels: metrics.widthPixels,
+            heightPixels: metrics.heightPixels,
+            density: metrics.density,
+            densityDpi: metrics.densityDpi,
+            scaledDensity: metrics.scaledDensity,
+            orientation: configuration.orientation,
+            screenLayout: configuration.screenLayout
+        }
+    }
+}
 
-混编（Kotlin）时，Kotlin 源码文件的 `package` 必须与上述默认包名严格一致，否则会导致找不到类/方法等问题。
-
-## AndroidManifest.xml 示例与常见权限
-
-当插件需要声明组件（Service/Activity）或权限时，可在 `utssdk/app-android/AndroidManifest.xml` 中配置，示例：
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 常见权限 -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- 前台服务权限（如需在前台长驻 service）-->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- 录音权限（语音能力等场景）-->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <application>
-        <!-- Service / Activity 等组件声明（按需） -->
-        <service
-            android:name="uts.sdk.modules.utsNativepage.ForeService"
-            android:exported="false" />
-
-        <activity
-            android:name="uts.sdk.modules.utsNativepage.DemoActivity"
-            android:exported="false" />
-    </application>
-  </manifest>
+// #endif
 ```
 
-注意：
-- 插件的 `AndroidManifest.xml` 与原生工程规则一致，会在云打包阶段与 App 主工程合并。
-- 若引用 AndroidX 资源（如使用 AppCompat 内建资源），需在 `app-android/config.json` 添加依赖：
+### Android资源管理
+
+```typescript
+// #ifdef APP-ANDROID
+
+/**
+ * Android资源管理工具类
+ */
+export class AndroidResourceManager {
+    
+    private static context = UTSAndroid.getAppContext() as Context
+    private static resources = this.context.getResources()
+    
+    /**
+     * 获取字符串资源
+     */
+    static getString(resId: number): string {
+        return this.resources.getString(resId)
+    }
+    
+    /**
+     * 获取字符串资源（带参数）
+     */
+    static getStringWithArgs(resId: number, ...args: any[]): string {
+        return this.resources.getString(resId, ...args)
+    }
+    
+    /**
+     * 获取颜色资源
+     */
+    static getColor(resId: number): number {
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            return this.resources.getColor(resId, this.context.getTheme())
+        } else {
+            return this.resources.getColor(resId)
+        }
+    }
+    
+    /**
+     * 获取尺寸资源
+     */
+    static getDimension(resId: number): number {
+        return this.resources.getDimension(resId)
+    }
+    
+    /**
+     * 获取尺寸像素值
+     */
+    static getDimensionPixelSize(resId: number): number {
+        return this.resources.getDimensionPixelSize(resId)
+    }
+    
+    /**
+     * 获取Drawable资源
+     */
+    static getDrawable(resId: number): android.graphics.drawable.Drawable | null {
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            return this.resources.getDrawable(resId, this.context.getTheme())
+        } else {
+            return this.resources.getDrawable(resId)
+        }
+    }
+    
+    /**
+     * 获取Assets文件内容
+     */
+    static getAssetsFile(fileName: string): string | null {
+        try {
+            const assetManager = this.context.getAssets()
+            const inputStream = assetManager.open(fileName)
+            const bytes = inputStream.readBytes()
+            inputStream.close()
+            
+            return new java.lang.String(bytes, "UTF-8").toString()
+        } catch (error) {
+            android.util.Log.e("ResourceManager", "Failed to read assets file: " + error.message)
+            return null
+        }
+    }
+    
+    /**
+     * DP转PX
+     */
+    static dp2px(dp: number): number {
+        const density = this.resources.getDisplayMetrics().density
+        return (dp * density + 0.5).toInt()
+    }
+    
+    /**
+     * SP转PX
+     */
+    static sp2px(sp: number): number {
+        const scaledDensity = this.resources.getDisplayMetrics().scaledDensity
+        return (sp * scaledDensity + 0.5).toInt()
+    }
+    
+    /**
+     * PX转DP
+     */
+    static px2dp(px: number): number {
+        const density = this.resources.getDisplayMetrics().density
+        return (px / density + 0.5).toInt()
+    }
+}
+
+// #endif
+```
+
+### Android生命周期管理
+
+```typescript
+// #ifdef APP-ANDROID
+
+import Application from "android.app.Application"
+import Activity from "android.app.Activity"
+import Bundle from "android.os.Bundle"
+
+/**
+ * Android生命周期监听器
+ */
+export class AndroidLifecycleManager {
+    
+    private static lifecycleCallbacks: Map<string, Array<Function>> = new Map()
+    private static isRegistered = false
+    
+    /**
+     * 注册生命周期监听
+     */
+    static registerLifecycleCallbacks(): void {
+        if (this.isRegistered) return
+        
+        const context = UTSAndroid.getAppContext() as Context
+        const application = context.getApplicationContext() as Application
+        
+        const callbacks = new Application.ActivityLifecycleCallbacks() {
+            override onActivityCreated(activity: Activity, savedInstanceState: Bundle | null): void {
+                AndroidLifecycleManager.triggerCallbacks('onCreate', activity, savedInstanceState)
+            }
+            
+            override onActivityStarted(activity: Activity): void {
+                AndroidLifecycleManager.triggerCallbacks('onStart', activity)
+            }
+            
+            override onActivityResumed(activity: Activity): void {
+                AndroidLifecycleManager.triggerCallbacks('onResume', activity)
+            }
+            
+            override onActivityPaused(activity: Activity): void {
+                AndroidLifecycleManager.triggerCallbacks('onPause', activity)
+            }
+            
+            override onActivityStopped(activity: Activity): void {
+                AndroidLifecycleManager.triggerCallbacks('onStop', activity)
+            }
+            
+            override onActivitySaveInstanceState(activity: Activity, outState: Bundle): void {
+                AndroidLifecycleManager.triggerCallbacks('onSaveInstanceState', activity, outState)
+            }
+            
+            override onActivityDestroyed(activity: Activity): void {
+                AndroidLifecycleManager.triggerCallbacks('onDestroy', activity)
+            }
+        }
+        
+        application.registerActivityLifecycleCallbacks(callbacks)
+        this.isRegistered = true
+    }
+    
+    /**
+     * 添加生命周期监听器
+     */
+    static addLifecycleListener(event: string, callback: Function): void {
+        let callbacks = this.lifecycleCallbacks.get(event)
+        if (!callbacks) {
+            callbacks = []
+            this.lifecycleCallbacks.set(event, callbacks)
+        }
+        callbacks.push(callback)
+        
+        // 确保已注册生命周期监听
+        this.registerLifecycleCallbacks()
+    }
+    
+    /**
+     * 移除生命周期监听器
+     */
+    static removeLifecycleListener(event: string, callback: Function): void {
+        const callbacks = this.lifecycleCallbacks.get(event)
+        if (callbacks) {
+            const index = callbacks.indexOf(callback)
+            if (index >= 0) {
+                callbacks.splice(index, 1)
+            }
+        }
+    }
+    
+    /**
+     * 触发回调
+     */
+    private static triggerCallbacks(event: string, ...args: any[]): void {
+        const callbacks = this.lifecycleCallbacks.get(event)
+        if (callbacks) {
+            callbacks.forEach(callback => {
+                try {
+                    callback(...args)
+                } catch (error) {
+                    android.util.Log.e("LifecycleManager", "Error in lifecycle callback: " + error.message)
+                }
+            })
+        }
+    }
+    
+    /**
+     * 获取当前Activity状态
+     */
+    static getCurrentActivityState(): string {
+        const activity = UTSAndroid.getUniActivity()
+        if (!activity) return 'unknown'
+        
+        return activity.isDestroyed() ? 'destroyed' : 
+               activity.isFinishing() ? 'finishing' : 'active'
+    }
+}
+
+// #endif
+```
+
+### 详细config.json配置
 
 ```json
 {
-  "dependencies": [
-    "androidx.appcompat:appcompat:1.0.0"
-  ]
+    "minSdkVersion": 21,
+    "compileSdkVersion": 34,
+    "targetSdkVersion": 34,
+    "dependencies": [
+        "androidx.appcompat:appcompat:1.6.1",
+        "androidx.recyclerview:recyclerview:1.3.0", 
+        "com.google.android.material:material:1.9.0",
+        "com.squareup.okhttp3:okhttp:4.10.0",
+        "com.google.code.gson:gson:2.10.1"
+    ],
+    "abis": ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"],
+    "project": {
+        "plugins": [
+            "kotlin-android",
+            "kotlin-parcelize"
+        ],
+        "dependencies": [
+            "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0"
+        ],
+        "repositories": [
+            "maven { url 'https://repo1.maven.org/maven2/' }",
+            "maven { url 'https://jcenter.bintray.com/' }",
+            "maven { url 'https://maven.google.com/' }",
+            "maven { url 'https://developer.huawei.com/repo/' }",
+            "maven { url 'https://jitpack.io' }"
+        ]
+    }
 }
 ```
 
-## 常见权限清单（参考）
+### AndroidManifest.xml 权限配置
 
-- 网络：`android.permission.INTERNET`, `android.permission.ACCESS_NETWORK_STATE`
-- 存储：`android.permission.READ_EXTERNAL_STORAGE`, `android.permission.WRITE_EXTERNAL_STORAGE`（API 29+ 分区存储）
-- 录音：`android.permission.RECORD_AUDIO`
-- 前台服务：`android.permission.FOREGROUND_SERVICE`
-- 定位：`android.permission.ACCESS_COARSE_LOCATION`, `android.permission.ACCESS_FINE_LOCATION`
+权限需要在AndroidManifest.xml中进行配置：
 
-## 编译 SDK 与目标 SDK（compileSdk/targetSdk）
-
-- 按官方要求配置合理的 `compileSdkVersion` 与 `targetSdkVersion`（通常与 HBuilderX 自带的 Android SDK 对齐）。
-- 过高的 targetSdk 可能触发更严格的权限/前台服务/后台限制，需要对应代码适配。
-
-## 过时 API 警告处理
-
-- 遇到 `@Deprecated` 或 `requires API` 的告警时，优先参考官方替代 API，并通过 `Build.VERSION.SDK_INT` 做分支以兼容低版本。
-- 避免滥用 `@Suppress("DEPRECATION")`。当确需使用过时 API 时，需在注释中说明理由和替代方案。
-
-## .so 库与原生资源限制
-
-- 官方说明：暂不支持直接将 `.so` 文件放入插件目录进行打包。
-- 三方 native 依赖建议通过远程依赖（Gradle/Maven）或以 AAR 形式集成（遵循官方“本地依赖/远程依赖”章节）。
-
-## R 资源 unresolved 处理
-
-- 若出现 `unresolved reference R`，优先检查：
-  - 资源是否放置在 `utssdk/app-android/res/` 的正确子目录（如 `layout/`, `values/`）；
-  - 包名是否一致（参考“包名默认规则”）；
-  - 是否引用了 AndroidX 资源但未添加 `androidx.appcompat:appcompat` 等依赖；
-  - 清理构建缓存并重试云打包。
-
-## 隐私协议适配（必读）
-
-- 若插件涉及个人信息采集或敏感权限（录音、定位、摄像头等），需遵守相关隐私合规要求。
-- 参考官方隐私协议适配说明，确保在首次采集前获得用户授权，并在商店上架材料中如实说明用途。
-
-## Android特有开发要点（精简）
-
-按官方 API 结构给出常用用法，更多方法与边界请查 UTSAndroid 文档：
-https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html
-
-### 上下文与 Activity
-
-```ts
-// #ifdef APP-ANDROID
-import { UTSAndroid } from 'io.dcloud.uts'
-import { Context } from 'android.content.Context'
-import { Activity } from 'android.app.Activity'
-
-const appCtx: Context = UTSAndroid.getAppContext()
-const topActivity: Activity | null = UTSAndroid.getUniActivity()
-// #endif
+```xml
+<!-- utssdk/app-android/AndroidManifest.xml -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- 网络访问权限 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- 存储权限（API 23+需要动态申请） -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    
+    <!-- 摄像头权限 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    
+    <!-- 位置权限 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+</manifest>
 ```
 
-### 线程调度
+### Android系统服务访问
 
-```ts
+```typescript
 // #ifdef APP-ANDROID
-const main = UTSAndroid.getDispatcher('main')
-const io = UTSAndroid.getDispatcher('io')
 
-io.async(() => {
-  // 执行耗时任务
-  main.async(() => {
-    // 切回主线程更新UI
-  })
-})
-// #endif
-```
-
-### 动态权限
-
-```ts
-// #ifdef APP-ANDROID
-const perms = [
-  'android.permission.RECORD_AUDIO',
-  'android.permission.CAMERA'
-]
-
-UTSAndroid.requestSystemPermission(
-  UTSAndroid.getAppContext(),
-  perms,
-  (all, granted) => {
-    if (all) {
-      // 已全部授权
+/**
+ * Android系统服务访问工具类
+ */
+export class AndroidSystemService {
+    
+    private static context = UTSAndroid.getAppContext() as Context
+    
+    /**
+     * 连接管理器服务
+     */
+    static getConnectivityManager(): android.net.ConnectivityManager {
+        return this.context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
     }
-  },
-  (doNotAskAgain) => {
-    // 引导前往系统设置
-  }
-)
+    
+    /**
+     * WiFi管理器服务
+     */
+    static getWifiManager(): android.net.wifi.WifiManager {
+        return this.context.getApplicationContext().getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+    }
+    
+    /**
+     * 电话管理器服务
+     */
+    static getTelephonyManager(): android.telephony.TelephonyManager {
+        return this.context.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+    }
+    
+    /**
+     * 位置管理器服务
+     */
+    static getLocationManager(): android.location.LocationManager {
+        return this.context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+    }
+    
+    /**
+     * 音频管理器服务
+     */
+    static getAudioManager(): android.media.AudioManager {
+        return this.context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+    }
+    
+    /**
+     * 传感器管理器服务
+     */
+    static getSensorManager(): android.hardware.SensorManager {
+        return this.context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+    }
+    
+    /**
+     * 振动器服务
+     */
+    static getVibrator(): android.os.Vibrator {
+        return this.context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+    }
+    
+    /**
+     * 通知管理器服务
+     */
+    static getNotificationManager(): android.app.NotificationManager {
+        return this.context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+    }
+    
+    /**
+     * 剪贴板管理器服务
+     */
+    static getClipboardManager(): android.content.ClipboardManager {
+        return this.context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    }
+    
+    /**
+     * 检查网络连接状态
+     */
+    static isNetworkAvailable(): boolean {
+        const connectivityManager = this.getConnectivityManager()
+        const networkInfo = connectivityManager.getActiveNetworkInfo()
+        return networkInfo != null && networkInfo.isConnected()
+    }
+    
+    /**
+     * 检查WiFi状态
+     */
+    static isWifiEnabled(): boolean {
+        const wifiManager = this.getWifiManager()
+        return wifiManager.isWifiEnabled()
+    }
+    
+    /**
+     * 获取网络类型
+     */
+    static getNetworkType(): string {
+        const connectivityManager = this.getConnectivityManager()
+        const networkInfo = connectivityManager.getActiveNetworkInfo()
+        
+        if (networkInfo == null || !networkInfo.isConnected()) {
+            return 'none'
+        }
+        
+        when (networkInfo.getType()) {
+            android.net.ConnectivityManager.TYPE_WIFI -> return 'wifi'
+            android.net.ConnectivityManager.TYPE_MOBILE -> return 'mobile'
+            android.net.ConnectivityManager.TYPE_ETHERNET -> return 'ethernet'
+            else -> return 'unknown'
+        }
+    }
+}
+
 // #endif
 ```
 
-### 资源与路径
+### Android Intent处理
 
-```ts
+```typescript
 // #ifdef APP-ANDROID
-const res = UTSAndroid.getResourcePath('logo.png')
-const abs = UTSAndroid.convert2AbsFullPath('./data/config.json')
+
+import Intent from "android.content.Intent"
+import ComponentName from "android.content.ComponentName"
+
+/**
+ * Android Intent处理工具类
+ */
+export class AndroidIntentHelper {
+    
+    private static context = UTSAndroid.getAppContext() as Context
+    
+    /**
+     * 启动Activity
+     */
+    static startActivity(packageName: string, className: string, extras?: any): boolean {
+        try {
+            const intent = new Intent()
+            intent.setComponent(new ComponentName(packageName, className))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            if (extras) {
+                this.addExtrasToIntent(intent, extras)
+            }
+            
+            this.context.startActivity(intent)
+            return true
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to start activity: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 启动应用
+     */
+    static launchApp(packageName: string): boolean {
+        try {
+            const packageManager = this.context.getPackageManager()
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                this.context.startActivity(intent)
+                return true
+            }
+            
+            return false
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to launch app: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 检查应用是否安装
+     */
+    static isAppInstalled(packageName: string): boolean {
+        try {
+            val packageManager = this.context.getPackageManager()
+            packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_ACTIVITIES)
+            return true
+        } catch (error) {
+            return false
+        }
+    }
+    
+    /**
+     * 打开系统设置
+     */
+    static openSystemSettings(action: string = android.provider.Settings.ACTION_SETTINGS): boolean {
+        try {
+            const intent = new Intent(action)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            this.context.startActivity(intent)
+            return true
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to open settings: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 发送分享Intent
+     */
+    static shareText(text: string, title?: string): boolean {
+        try {
+            const intent = new Intent(Intent.ACTION_SEND)
+            intent.setType("text/plain")
+            intent.putExtra(Intent.EXTRA_TEXT, text)
+            
+            if (title) {
+                intent.putExtra(Intent.EXTRA_TITLE, title)
+            }
+            
+            val chooserIntent = Intent.createChooser(intent, title || "分享到")
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            this.context.startActivity(chooserIntent)
+            return true
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to share text: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 拨打电话
+     */
+    static makePhoneCall(phoneNumber: string): boolean {
+        try {
+            const intent = new Intent(Intent.ACTION_CALL)
+            intent.setData(android.net.Uri.parse("tel:" + phoneNumber))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            this.context.startActivity(intent)
+            return true
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to make phone call: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 发送短信
+     */
+    static sendSMS(phoneNumber: string, message: string): boolean {
+        try {
+            const intent = new Intent(Intent.ACTION_SENDTO)
+            intent.setData(android.net.Uri.parse("smsto:" + phoneNumber))
+            intent.putExtra("sms_body", message)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            this.context.startActivity(intent)
+            return true
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to send SMS: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 打开浏览器
+     */
+    static openUrl(url: string): boolean {
+        try {
+            val intent = new Intent(Intent.ACTION_VIEW)
+            intent.setData(android.net.Uri.parse(url))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            this.context.startActivity(intent)
+            return true
+        } catch (error) {
+            android.util.Log.e("IntentHelper", "Failed to open URL: " + error.message)
+            return false
+        }
+    }
+    
+    /**
+     * 向Intent添加额外数据
+     */
+    private static addExtrasToIntent(intent: Intent, extras: any): void {
+        for (const key in extras) {
+            const value = extras[key]
+            
+            when (typeof value) {
+                "string" -> intent.putExtra(key, value as string)
+                "number" -> {
+                    if (Number.isInteger(value)) {
+                        intent.putExtra(key, value as Int)
+                    } else {
+                        intent.putExtra(key, value as Double)
+                    }
+                }
+                "boolean" -> intent.putExtra(key, value as Boolean)
+                else -> intent.putExtra(key, value.toString())
+            }
+        }
+    }
+}
+
 // #endif
 ```
 
-## 参考
+### 最佳实践和注意事项
 
-- uts for Android（原生环境配置、仓库/依赖、Manifest 示例）：
-  https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html
-- UTSAndroid API（方法清单与参数说明）：
-  https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html
+#### 1. 线程处理最佳实践
 
-## UTS 与 Kotlin 差异重点清单（精选）
+```typescript
+// ✅ 正确的异步处理方式
+function performAsyncOperation(callback: (result: any) => void): void {
+    UTSAndroid.getDispatcher("io").async(function(_) {
+        // 耗时操作在IO线程执行
+        const result = doLongRunningTask()
+        
+        // 切换到主线程更新UI
+        UTSAndroid.getDispatcher("main").async(function(_) {
+            callback(result)
+        }, null)
+    }, null)
+}
 
-- 变量定义：优先使用 `let`/`const`（UTS 语义）代替 Kotlin 的 `val/var`，并遵循 UTS 的类型推断与只读约束。
-- 方法定义：UTS 的函数签名与 Kotlin 写法不同，注意返回类型、默认参数与可空类型在 UTS 的表达方式。
-- 非空断言：尽量避免频繁使用非空断言，优先用类型守卫与可空类型分支；
-- 匿名内部类：UTS 有专门写法，参考官方“匿名内部类”章节；
-- 一个类只能有一个构造函数：在 UTS 中避免使用多构造重载，改用可选参数或工厂方法；
-- 指定 double：数值字面量需要按平台严格类型处理，必要时显式类型转换；
-- Java 包引入：`java.lang` 等包的引入需按 UTS 导入规则，避免隐式引用失败；
-- 警告优化：遇到“推断为 XXX，但预期为 Unit”类警告时检查函数返回值与调用上下文。
-
-## 常见问题（精选）
-
-### 新建 Activity/Service/Thread
-
-- Activity/Service：在 `AndroidManifest.xml` 中按需声明，并在 UTS 中通过 Intent 等方式启动；
-- Thread：建议使用 UTSAndroid 的 Dispatcher（`main`/`io`）而非直接 new Thread，避免线程切换问题。
-
-### 如何生成 byte[]
-
-```ts
-// 常见写法（示例），按 UTS 当前版本的数组创建规则
-const bytes = new Array<number>(len)
-// 或使用平台 API 提供的 ByteBuffer/Arrays 工具（以官方示例为准）
+// ❌ 错误的做法 - 在主线程执行耗时操作
+function badAsyncOperation(): void {
+    // 这会阻塞UI线程
+    val result = doLongRunningTask()
+    updateUI(result)
+}
 ```
 
-### 如何实现接口 / 访问静态方法
+#### 2. 权限处理最佳实践
 
-- 接口：使用 UTS 的接口实现语法，注意泛型与可空差异；
-- 静态方法：通过类名调用，若为 Java 静态工具类，需按 UTS 导入完整限定名。
+```typescript
+function requestCameraPermission(callback: (granted: boolean) => void): void {
+    const permissions = ["android.permission.CAMERA"]
+    
+    if (UTSAndroidHelper.hasPermissions(permissions)) {
+        callback(true)
+        return
+    }
+    
+    UTSAndroidHelper.requestPermission(permissions, (allGranted, grantedList) => {
+        callback(allGranted)
+    })
+}
+```
 
-### 泛型参数传递丢失
+#### 3. 资源管理最佳实践
 
-- 部分场景编译期擦除导致类型信息丢失，建议在关键路径提供显式类型、或改用不依赖泛型的签名。
+```typescript
+// ✅ 正确的资源管理
+class ResourceHandler {
+    private inputStream: java.io.InputStream | null = null
+    
+    openResource(fileName: string): boolean {
+        try {
+            this.inputStream = UTSAndroid.getAppContext().getAssets().open(fileName)
+            return true
+        } catch (error) {
+            return false
+        }
+    }
+    
+    closeResource(): void {
+        try {
+            this.inputStream?.close()
+            this.inputStream = null
+        } catch (error) {
+            android.util.Log.e("ResourceHandler", "Failed to close resource: " + error.message)
+        }
+    }
+}
+```
 
-### 获取原生 Class 对象
-
-- 参考 UTSAndroid 提供的 `getJavaClass/getKotlinClass` 能力（以官方签名为准）。
-
-### Qualified name 错误
-
-- “Qualified name must be a '.'-separated identifier list”：检查包名与导入路径是否与默认包名规则一致；UTS 的包名需与 Kotlin/Manifest 保持一致。
+这些增强内容基于DCloud官方文档，提供了更完整和实用的Android UTS开发指导。

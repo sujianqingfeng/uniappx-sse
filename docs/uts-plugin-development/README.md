@@ -122,25 +122,11 @@
 
 ### 🔄 更新说明
 
-本文档系列将持续更新，随着 uni-app x 与 UTS 的演进不断完善。
+本文档系列将持续更新，随着uni-app-x和UTS技术的发展不断完善内容。
 
-- 当前版本：v1.0.2
-- 最后同步：2025-09-13（已对照官方文档；细项优化：创建引导、依赖整合、导入参考、iOS 参数标签提示等）
-- 适用范围：
-  - uni-app：HBuilderX 3.6+ 支持使用 UTS 插件
-  - uni-app x：HBuilderX 3.9+ 支持使用 UTS 插件
-  - Android：最低 `minSdkVersion` = 21（Android 5.0）
-  - HarmonyOS ArkTS：HBuilderX 4.22+ 起支持
-  - Kotlin 版本：HBuilderX 4.81 起统一升级至 Kotlin 2.2.0（见 Android 小节升级注意事项）
-
-### 🔧 实用参考
-
-- [UTSAndroid 精要参考](./11-utsandroid.md)
-- [UTSiOS 精要参考](./12-utsios.md)
-- [HarmonyOS UTS 增强](./13-harmony-uts-enhanced.md)
-- [常见问题与报错汇编](./15-troubleshooting-and-faq.md)
-- [调试与运行指引](./16-debug-and-run.md)
-- [打包、发布与维护](./17-publish-and-maintain.md)
+- 当前版本：v1.0.0
+- 最后更新：2024年
+- 适用于：uni-app-x 4.0+
 
 ### 📞 反馈与建议
 
@@ -153,15 +139,3 @@
 ---
 
 开始您的UTS组件开发之旅！🚀
-
----
-
-## 官方文档映射（参考）
-
-- UTS 插件介绍：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html
-- uts for Android：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html
-- uts for iOS：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-ios.html
-- uts for HarmonyOS：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-harmony.html
-- UTSAndroid API：https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html
-- UTSiOS API：https://doc.dcloud.net.cn/uni-app-x/uts/utsios.html
-- UTSHarmony API：https://doc.dcloud.net.cn/uni-app-x/uts/utsharmony.html

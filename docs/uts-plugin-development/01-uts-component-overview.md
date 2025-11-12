@@ -1,15 +1,5 @@
 # UTS组件插件开发完整指南
 
-> 同步说明（来源：官方文档）
-> - 关联页面：UTS 插件介绍（https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html）
-> - 同步时间：2025-09-13
-> - 版本要点：
->   - uni-app 使用 UTS 插件：HBuilderX 3.6+
->   - uni-app x 使用 UTS 插件：HBuilderX 3.9+
->   - Android 最低 API Level：21（Android 5.0）
->   - HarmonyOS ArkTS：HBuilderX 4.22+ 起支持
->   - Kotlin 版本：HBuilderX 4.81 起统一升级至 Kotlin 2.2.0
-
 ## 概述
 
 UTS组件是uni-app-x中用于创建跨平台原生组件的解决方案。通过UTS组件，开发者可以创建具有原生性能的Vue组件，同时保持跨平台兼容性。
@@ -80,7 +70,7 @@ mkdir -p uni_modules/your-component/static
   "keywords": ["uni-app", "uts", "component"],
   "repository": "",
   "engines": {
-    "HBuilderX": "^4.25.0"
+    "HBuilderX": "^4.0.0"
   },
   "dcloudext": {
     "type": "component-vue",
@@ -238,102 +228,16 @@ export { componentContext }
 
 ## 下一步
 
-本概述文档为你提供了UTS组件开发的全貌。可继续阅读以下已提供的章节：
+本概述文档为你提供了UTS组件开发的全貌。接下来的文档将深入探讨：
 
-- [Vue组件开发详解](./02-vue-component-development.md)：.uvue 层结构、props/emits、事件桥接、性能优化
-- [Android原生实现指南](./03-android-native-implementation.md)：原生视图、Manifest/权限、config.json（Gradle/repositories）
-- [UTS语言基础指南](./04-uts-language-fundamentals.md)：类型系统、联合/守卫、条件编译与平台差异
-- [UTS平台API调用指南](./05-uts-platform-api.md)：平台 API 导入、调用与参考跳转表
-- [UTS插件开发指南](./06-uts-plugin-development.md)：项目结构、接口/错误、平台实现、调试与发布
-- [Android平台UTS开发增强指南](./07-android-uts-enhanced.md)：UTSAndroid 工具、线程/权限、资源管理
-- [iOS平台UTS开发增强指南](./08-ios-uts-enhanced.md)：UTSiOS 工具、主线程 UI、config/Info.plist 提示
-- [UTS原生混编开发指南](./09-uts-native-hybrid.md)：Kotlin/Swift/ArkTS 混编与统一接口
-- [UTS 数据类型](./10-uts-data-types.md)：基础/复杂/高级类型与平台数值类型注意点
-- [UTSAndroid API 参考（实践向）](./11-utsandroid.md)：生命周期、权限、资源、调度
-- [UTSiOS API 参考（实践向）](./12-utsios.md)：设备/应用、系统/资源、主题/UI、原生交互
-- [HarmonyOS平台UTS开发增强指南](./13-harmony-uts-enhanced.md)：ArkTS/ohpm/HAR、module.json5、混编
-- [iOS CocoaPods 集成](./14-ios-cocoapods-integration.md)：config.json Pods 声明、环境配置与注意事项
+- [Vue组件开发详解](./02-vue-component-development.md)
+- [Android原生实现指南](./03-android-native-implementation.md)
+- [iOS原生实现指南](./04-ios-native-implementation.md)
+- [HarmonyOS原生实现指南](./05-harmony-native-implementation.md)
+- [事件系统和通信机制](./06-event-system-communication.md)
+- [组件上下文和高级用法](./07-component-context-advanced.md)
+- [性能优化和最佳实践](./08-performance-optimization.md)
+- [调试和测试指南](./09-debugging-testing.md)
+- [发布和维护](./10-publishing-maintenance.md)
 
-每个文档都提供了代码示例与操作要点，建议按需跳转查阅。
-
-## 推荐阅读顺序（新手友好）
-
-1) 语言与组件基础：
-- 02 Vue组件开发详解（.uvue 基础、事件与性能）
-- 04 UTS语言基础指南（类型、条件编译、平台差异）
-
-2) 平台 API & 插件框架：
-- 05 UTS平台API调用指南（导入与调用）
-- 06 UTS插件开发指南（项目结构、接口/错误、调试）
-
-3) 平台实现与增强：
-- 03 Android原生实现指南（视图、Manifest/权限、Gradle）
-- 07 Android平台UTS开发增强指南（线程/权限/资源管理）
-- 08 iOS平台UTS开发增强指南（主线程 UI、config/Info.plist）
-- 13 HarmonyOS平台UTS开发增强指南（ArkTS/ohpm/HAR）
-
-4) 参考与进阶：
-- 11 UTSAndroid / 12 UTSiOS（实践向 API 参考）
-- 09 UTS原生混编开发指南（Kotlin/Swift/ArkTS 混编）
-- 10 UTS 数据类型（类型细节与平台数值类型注意）
-- 14 iOS CocoaPods 集成（需要 Pod 依赖时）
-
-## 快速上手路径
-
-1) 准备环境
-- 安装/更新 HBuilderX（uni-app x ≥ 3.9，Android minSdk ≥ 21）
-- 熟悉 UTS 语法与平台 API（见下方官方参考）
-
-2) 创建插件/组件骨架
-- HBuilderX 新建 UTS 插件，或基于 Hello UTS 示例复制改造
-- 建立 `uni_modules/<id>/components/<name>.uvue` 与 `utssdk/app-*/index.uts`
-
-3) 约定接口与错误
-- 在 `interface.uts` 定义类型/方法签名
-- 在 `unierror.uts` 统一错误码与错误类型
-
-4) 平台原生实现
-- Android/iOS/HarmonyOS 分别在 `app-android|app-ios|app-harmony` 实现
-- 依赖管理：Android（Gradle/repositories）、iOS（frameworks/pods）
-
-5) Vue 层对接
-- 在 .uvue 中使用 `native-view` 承载原生视图，处理 `@init` 与事件
-- 通过组件上下文/暴露方法与外部交互
-
-6) 调试与构建
-- HBuilderX 真机运行，关注日志与权限/资源
-- 云打包验证第三方 SDK 与仓库配置
-
-7) 发布与维护
-- 规范化 `package.json`、完善 README/示例
-- 发布到插件市场（ext.dcloud.net.cn），持续兼容升级
-
-## 官方参考
-
-- uni-app x 总览：https://doc.dcloud.net.cn/uni-app-x/
-- UTS 插件介绍：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html
-- uts for Android：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-android.html
-- uts for iOS：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-ios.html
-- uts for HarmonyOS：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-for-harmony.html
-- UTSAndroid API：https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html
-- UTSiOS API：https://doc.dcloud.net.cn/uni-app-x/uts/utsios.html
-- UTSHarmony API：https://doc.dcloud.net.cn/uni-app-x/uts/utsharmony.html
-- Vue（uvue）指南：https://doc.dcloud.net.cn/uni-app-x/vue/
-- 组件文档（概览）：https://doc.dcloud.net.cn/uni-app-x/component/
-- 原生开发（概览）：https://doc.dcloud.net.cn/uni-app-x/native/
-
-## 术语对照
-
-- uvue：uni-app x 的 Vue 渲染框架，与 UTS 配合开发页面与组件
-- native-view：原生视图容器/桥接视图，用于在 uvue 中承载原生 UI
-- uni_modules：官方插件目录规范，UTS 插件目录位于 `uni_modules/<id>/utssdk`
-- utssdk：UTS 插件源码根目录，含 `app-android`/`app-ios`/`app-harmony` 等子目录
-- interface.uts：插件对外接口类型定义
-- unierror.uts：插件错误码/错误类型定义
-- Dispatcher（main/io/default）：UTS 调度器（主线程/IO/默认线程池）
-- Context/Activity：Android 应用上下文/活动页面对象（UTSAndroid）
-- ViewController/KeyWindow：iOS 顶层控制器/主窗口（UTSiOS）
-- config.json（iOS）：frameworks/libraries/dependencies（CocoaPods/系统库）
-- config.json（Android）：dependencies/project.plugins/project.repositories（Gradle/仓库）
-- ArkTS/ohpm/HAR：HarmonyOS 语言与包管理/归档格式
-- HBuilderX 版本边界：3.6+（uni-app 用 UTS 插件）、3.9+（uni-app x）、4.22+（ArkTS）、4.36+（Android repositories）、4.81（Kotlin 2.2）
+每个文档都将提供详细的代码示例和实战指导。
