@@ -5,16 +5,17 @@ import android.os.Handler
 import android.os.Looper
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.TimeUnit
 import android.content.Context
 import io.dcloud.uts.UTSAndroid
 import io.dcloud.uts.console
+import okhttp3.Call
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okio.BufferedSource
 
 class SSEManager private constructor() {
     private val TAG = "SSEManager"
@@ -65,7 +66,7 @@ class SSEManager private constructor() {
      */
     private class ConnectionHandle {
         val isCancelled = AtomicBoolean(false)
-        @Volatile var connection: HttpURLConnection? = null
+        @Volatile var call: Call? = null
         @Volatile var thread: Thread? = null
         @Volatile var useForeground: Boolean = false
     }
@@ -74,6 +75,15 @@ class SSEManager private constructor() {
     
     // 前台服务引用计数
     private val fgRefCount = AtomicInteger(0)
+
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
+    }
 
     companion object {
         @Volatile
@@ -235,43 +245,48 @@ class SSEManager private constructor() {
 
         val worker = Thread {
             try {
-                logDebug("[$requestId] 初始化 HttpURLConnection ...")
-                val urlObj = URL(url)
-                val conn = (urlObj.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 30_000
-                    readTimeout = 0 // SSE 长连接，读取不超时
-                    setRequestProperty("Accept", "text/event-stream")
-                    setRequestProperty("Cache-Control", "no-cache")
-                    setRequestProperty("Connection", "keep-alive")
-                    // 自定义请求头
-                    headers?.forEach { (k, v) -> setRequestProperty(k, v?.toString() ?: "") }
-                    instanceFollowRedirects = true
+                logDebug("[$requestId] 初始化 OkHttp SSE 连接 ...")
+
+                val requestBuilder = Request.Builder()
+                    .url(url)
+                    .get()
+                    .header("Accept", "text/event-stream")
+                    .header("Cache-Control", "no-cache")
+                    .header("Connection", "keep-alive")
+                    .header("Accept-Encoding", "identity")
+
+                headers?.forEach { (k, v) ->
+                    if (!k.isNullOrBlank()) {
+                        requestBuilder.header(k, v?.toString() ?: "")
+                    }
                 }
-                handle.connection = conn
-                logDebug("[$requestId] 连接配置: connectTimeout=${conn.connectTimeout}, readTimeout=${conn.readTimeout}, followRedirects=${conn.instanceFollowRedirects}")
-                logInfo("[$requestId] 开始连接... -> ${conn.url}")
-                try {
-                    // 打印网络安全提示：是否为 http 明文
-                    val isCleartext = conn.url.protocol.equals("http", ignoreCase = true)
-                    logDebug("[$requestId] isCleartext=$isCleartext host=${conn.url.host}")
-                } catch (_: Throwable) {}
 
-                conn.connect()
+                val request = requestBuilder.build()
+                val call = httpClient.newCall(request)
+                handle.call = call
+                logInfo("[$requestId] 开始连接... -> ${request.url}")
 
-                val code = conn.responseCode
-                logInfo("[$requestId] 已连接，HTTP 响应码: $code")
-                if (code !in 200..299) {
-                    throw Exception("HTTP $code")
+                val response = call.execute()
+                logInfo("[$requestId] 已连接，HTTP 响应码: ${response.code}")
+                if (!response.isSuccessful) {
+                    response.close()
+                    throw Exception("HTTP ${response.code}")
                 }
 
                 postToMain { callback.onOpen(requestId) }
 
-                BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
+                response.body?.use { body ->
+                    val source: BufferedSource = body.source()
                     logDebug("[$requestId] 开始读取 SSE 流数据 ...")
                     var dataBuffer = StringBuilder()
 
-                    while (!handle.isCancelled.get()) {
-                        val l = reader.readLine() ?: break
+                    while (!handle.isCancelled.get() && !call.isCanceled()) {
+                        val l = try {
+                            source.readUtf8Line()
+                        } catch (t: Throwable) {
+                            if (handle.isCancelled.get() || call.isCanceled()) break
+                            throw t
+                        } ?: break
                         if (l.isEmpty()) {
                             // 事件结束，派发消息
                             if (dataBuffer.isNotEmpty()) {
@@ -319,8 +334,10 @@ class SSEManager private constructor() {
                             }
                         }
                     }
-                    logInfo("[$requestId] 读取循环结束（取消=${handle.isCancelled.get()}）")
-                }
+                    logInfo("[$requestId] 读取循环结束（取消=${handle.isCancelled.get()}，callCanceled=${call.isCanceled()}）")
+                } ?: throw Exception("空响应体")
+
+                response.close()
             } catch (e: Exception) {
                 val msg = e.message ?: e.toString()
                 console.log("[SSEManager] ❌ 连接异常: $msg")
@@ -360,7 +377,7 @@ class SSEManager private constructor() {
                 
                 logInfo("[$requestId] 准备关闭连接与清理资源 ...")
                 try {
-                    handle.connection?.disconnect()
+                    handle.call?.cancel()
                 } catch (_: Exception) { }
                 connections.remove(requestId)
                 try { postToMain { callback.onClose(requestId) } } catch (_: Exception) { }
@@ -399,7 +416,7 @@ class SSEManager private constructor() {
         logWarn("cancelAllConnections() 当前连接数=${connections.size}")
         connections.values.forEach { handle ->
             handle.isCancelled.set(true)
-            try { handle.connection?.disconnect() } catch (_: Exception) { }
+            try { handle.call?.cancel() } catch (_: Exception) { }
             try { handle.thread?.interrupt() } catch (_: Exception) { }
         }
         connections.clear()
