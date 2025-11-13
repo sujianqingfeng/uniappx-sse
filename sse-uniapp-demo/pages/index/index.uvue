@@ -31,6 +31,11 @@
               <text class="switch-label">启用 WakeLock:</text>
               <switch v-model="wakeLockEnabled" color="#007aff" />
             </view>
+
+            <view class="switch-row" v-if="enableForeground">
+              <text class="switch-label">启用 Wi-Fi Lock:</text>
+              <switch v-model="wifiLockEnabled" color="#007aff" />
+            </view>
             
             <view class="switch-row" v-if="enableForeground">
               <text class="switch-label">通知重要性:</text>
@@ -155,6 +160,7 @@ export default {
       foregroundText: '后台保持连接以接收消息',
       foregroundImportance: 'low',
       wakeLockEnabled: true,
+      wifiLockEnabled: true,
       notifications: 'auto',
       importanceIndex: 0,
         connections: [] as Connection[]
@@ -270,6 +276,7 @@ export default {
           complete: completeCallback,
           foregroundEnabled: true,
           wakeLockEnabled: this.wakeLockEnabled,
+          wifiLockEnabled: this.wifiLockEnabled,
           notifications: this.notifications,
           foregroundTitle: this.foregroundTitle,
           foregroundText: this.foregroundText,

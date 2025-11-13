@@ -86,6 +86,7 @@ sseConnectApi({
   foregroundEnabled: true,
   notifications: 'auto',
   wakeLockEnabled: true,
+  wifiLockEnabled: true,
   foregroundTitle: 'SSE 正在保持连接',
   foregroundText: '后台保持连接以接收消息',
   foregroundImportance: 'low',
@@ -118,6 +119,7 @@ export type SSEConnectOptions = {
   foregroundImportance?: 'min'|'low'|'default'|'high'|'max'
   notifications?: true | false | 'auto'
   wakeLockEnabled?: boolean
+  wifiLockEnabled?: boolean
   success?: (res: SSEConnectResult) => void
   fail?: (res: SSEApiFail) => void
   complete?: (res: any) => void
@@ -216,5 +218,4 @@ ATS 提示：如需使用明文 HTTP 测试，请在 App 的 `Info.plist` 中配
 ### 贡献
 
 欢迎提交 Issue 与 PR。开发时可分别在 `sse-android`、`sse-ios-framework` 构建产物，并在 `sse-uniapp-demo` 或 `sse-uniapp-v3-demo` 中联调。
-
 

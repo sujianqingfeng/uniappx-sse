@@ -168,22 +168,22 @@ class SSEManager private constructor() {
     /**
      * 新增重载：支持前台服务开关和 WakeLock 配置
      */
-    fun startConnectionWithHeadersJson(url: String, headersJson: String?, requestId: String, callback: SSECallback, useForeground: Boolean, wakeLockEnabled: Boolean) {
+    fun startConnectionWithHeadersJson(url: String, headersJson: String?, requestId: String, callback: SSECallback, useForeground: Boolean, wakeLockEnabled: Boolean, wifiLockEnabled: Boolean) {
         val parsed = parseHeadersJson(headersJson)
-        startConnection(url, parsed, requestId, callback, useForeground, wakeLockEnabled)
+        startConnection(url, parsed, requestId, callback, useForeground, wakeLockEnabled, wifiLockEnabled)
     }
 
     /**
      * 开始 SSE 连接（使用 HttpURLConnection 实现）
      */
     fun startConnection(url: String, headers: Map<String, Any?>?, requestId: String, callback: SSECallback) {
-        startConnection(url, headers, requestId, callback, false, true)
+        startConnection(url, headers, requestId, callback, false, true, true)
     }
 
     /**
      * 开始 SSE 连接（支持前台服务配置）
      */
-    fun startConnection(url: String, headers: Map<String, Any?>?, requestId: String, callback: SSECallback, useForeground: Boolean, wakeLockEnabled: Boolean) {
+    fun startConnection(url: String, headers: Map<String, Any?>?, requestId: String, callback: SSECallback, useForeground: Boolean, wakeLockEnabled: Boolean, wifiLockEnabled: Boolean) {
         logInfo("startConnection(): requestId=$requestId, url=$url, headersKeys=${headers?.keys}")
         if (connections.containsKey(requestId)) {
             logWarn("已存在 requestId 为 $requestId 的连接")
@@ -214,7 +214,7 @@ class SSEManager private constructor() {
                         console.log("[SSEManager] ⚠️ 无法加载 Service 类: ${e.message}")
                     }
                     
-                    SseForegroundService.start(context, wakeLockEnabled)
+                    SseForegroundService.start(context, wakeLockEnabled, wifiLockEnabled)
                     console.log("[SSEManager] ✅ 前台服务已启动")
                     logInfo("前台服务已启动 (useForeground=$useForeground, wakeLock=$wakeLockEnabled)")
                 } catch (e: Exception) {
@@ -323,6 +323,10 @@ class SSEManager private constructor() {
                 }
             } catch (e: Exception) {
                 val msg = e.message ?: e.toString()
+                console.log("[SSEManager] ❌ 连接异常: $msg")
+                try {
+                    console.log("[SSEManager] 堆栈: ${e.stackTraceToString()}")
+                } catch (_: Exception) {}
                 logError("[$requestId] SSE 连接或读取失败: $msg", e)
                 if (msg.contains("CLEARTEXT", ignoreCase = true)) {
                     logError("[$requestId] 检测到明文 HTTP 被拦截，请确认 usesCleartextTraffic 或 networkSecurityConfig 放行对应域名/IP")
@@ -401,4 +405,3 @@ class SSEManager private constructor() {
         connections.clear()
     }
 }
-

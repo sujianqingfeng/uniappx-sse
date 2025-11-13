@@ -19,6 +19,7 @@ export type SSEConnectOptions = {
   foregroundImportance ?: 'min'|'low'|'default'|'high'|'max'
   notifications ?: true | false | 'auto'
   wakeLockEnabled ?: boolean
+  wifiLockEnabled ?: boolean
   success ?: (res : SSEConnectResult) => void
   fail ?: (res : SSEApiFail) => void
   complete ?: (res : any) => void
@@ -117,4 +118,3 @@ export declare const closeAllSSEConnections: () => void;
 export declare const createSSEError: (code: SSEApiErrorCode, message?: string) => SSEApiFail;
 
 // 注意：SayHi 示例 API 已移除，仅保留 SSE 相关接口
-

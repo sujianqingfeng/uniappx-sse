@@ -253,6 +253,7 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
   const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
   const fgEnabled = options.foregroundEnabled === true;
   const wakeLockEnabled = (options.wakeLockEnabled == null) ? true : options.wakeLockEnabled === true;
+  const wifiLockEnabled = (options.wifiLockEnabled == null) ? true : options.wifiLockEnabled === true;
   const notificationStrategy = options.notifications ?? 'auto';
 
   const dispatchGeneralFailure = (error: any) => {
@@ -276,7 +277,7 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
         SseForegroundService.configure(channelId, channelName, importance, title, text);
 
         console.log(`[index.uts] 前台服务配置: channelId=${channelId}, importance=${importance}`);
-        console.log(`[index.uts] WakeLock: ${wakeLockEnabled}, 通知: "${title}"`);
+        console.log(`[index.uts] WakeLock: ${wakeLockEnabled}, WiFiLock: ${wifiLockEnabled}, 通知: "${title}"`);
       } else {
         console.log(`[index.uts] 前台服务未启用 (requestId=${requestId})`);
       }
@@ -291,9 +292,9 @@ export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions
         headersJson = null;
       }
 
-      console.log(`[index.uts] 调用 SSEManager.startConnectionWithHeadersJson (url=${finalUrl}, fg=${fgEnabled}, wake=${wakeLockEnabled})`);
+      console.log(`[index.uts] 调用 SSEManager.startConnectionWithHeadersJson (url=${finalUrl}, fg=${fgEnabled}, wake=${wakeLockEnabled}, wifi=${wifiLockEnabled})`);
       if (fgEnabled) {
-        manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback, fgEnabled, wakeLockEnabled);
+        manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback, fgEnabled, wakeLockEnabled, wifiLockEnabled);
       } else {
         manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback);
       }

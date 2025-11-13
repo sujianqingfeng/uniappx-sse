@@ -10,10 +10,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.util.concurrent.atomic.AtomicBoolean
 import io.dcloud.uts.console
+import android.net.wifi.WifiManager
 
 class SseForegroundService : Service() {
     private val TAG = "SseForegroundService"
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
     private val isConfigured = AtomicBoolean(false)
 
     companion object {
@@ -52,13 +54,14 @@ class SseForegroundService : Service() {
         /**
          * 启动前台服务
          */
-        fun start(context: Context, wakeLockEnabled: Boolean = true) {
-            console.log("[SseForegroundService.start] 开始启动服务 (wakeLock=$wakeLockEnabled, SDK=${Build.VERSION.SDK_INT})")
+        fun start(context: Context, wakeLockEnabled: Boolean = true, wifiLockEnabled: Boolean = true) {
+            console.log("[SseForegroundService.start] 开始启动服务 (wakeLock=$wakeLockEnabled, wifiLock=$wifiLockEnabled, SDK=${Build.VERSION.SDK_INT})")
             console.log("[SseForegroundService.start] Context类型: ${context.javaClass.name}")
             
             try {
                 val intent = Intent(context, SseForegroundService::class.java).apply {
                     putExtra("wakeLockEnabled", wakeLockEnabled)
+                    putExtra("wifiLockEnabled", wifiLockEnabled)
                 }
                 console.log("[SseForegroundService.start] Intent 已创建，目标类: ${SseForegroundService::class.java.name}")
                 
@@ -182,6 +185,42 @@ class SseForegroundService : Service() {
                 Log.e("SseForegroundService", "释放 WakeLock 失败", e)
             }
         }
+
+        private fun acquireWifiLock(context: Context): WifiManager.WifiLock? {
+            console.log("[SseForegroundService] 准备获取 Wi-Fi Lock (HIGH_PERF)")
+            return try {
+                val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                val lock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "SseForegroundService:Wifi").apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+                console.log("[SseForegroundService] ✅ Wi-Fi Lock 已获取")
+                Log.d("SseForegroundService", "Wi-Fi Lock 已获取")
+                lock
+            } catch (e: Exception) {
+                console.log("[SseForegroundService] ❌ Wi-Fi Lock 获取失败: ${e.message}")
+                Log.e("SseForegroundService", "获取 Wi-Fi Lock 失败", e)
+                null
+            }
+        }
+
+        private fun releaseWifiLock(lock: WifiManager.WifiLock?) {
+            console.log("[SseForegroundService] 准备释放 Wi-Fi Lock")
+            try {
+                lock?.let {
+                    if (it.isHeld) {
+                        it.release()
+                        console.log("[SseForegroundService] ✅ Wi-Fi Lock 已释放")
+                        Log.d("SseForegroundService", "Wi-Fi Lock 已释放")
+                    } else {
+                        console.log("[SseForegroundService] Wi-Fi Lock 未持有，跳过释放")
+                    }
+                }
+            } catch (e: Exception) {
+                console.log("[SseForegroundService] ❌ Wi-Fi Lock 释放失败: ${e.message}")
+                Log.e("SseForegroundService", "释放 Wi-Fi Lock 失败", e)
+            }
+        }
     }
 
     override fun onCreate() {
@@ -195,7 +234,9 @@ class SseForegroundService : Service() {
         Log.d(TAG, "前台服务 onStartCommand")
         
         val wakeLockEnabled = intent?.getBooleanExtra("wakeLockEnabled", true) ?: true
+        val wifiLockEnabled = intent?.getBooleanExtra("wifiLockEnabled", true) ?: true
         console.log("[SseForegroundService] WakeLock 配置: $wakeLockEnabled")
+        console.log("[SseForegroundService] Wi-Fi Lock 配置: $wifiLockEnabled")
         
         // 启动前台通知
         console.log("[SseForegroundService] 创建通知...")
@@ -217,6 +258,13 @@ class SseForegroundService : Service() {
         } else {
             console.log("[SseForegroundService] WakeLock 未启用")
         }
+
+        if (wifiLockEnabled) {
+            console.log("[SseForegroundService] 启用 Wi-Fi Lock，准备获取...")
+            wifiLock = acquireWifiLock(this)
+        } else {
+            console.log("[SseForegroundService] Wi-Fi Lock 未启用")
+        }
         
         isConfigured.set(true)
         console.log("[SseForegroundService] ✅ Service 配置完成，返回 START_STICKY")
@@ -228,9 +276,11 @@ class SseForegroundService : Service() {
         console.log("[SseForegroundService] 🛑 Service onDestroy 被调用")
         Log.d(TAG, "前台服务 onDestroy")
         
-        // 释放 WakeLock
+        // 释放 WakeLock 和 Wi-Fi Lock
         releaseWakeLock(wakeLock)
         wakeLock = null
+        releaseWifiLock(wifiLock)
+        wifiLock = null
         
         // 停止前台服务
         console.log("[SseForegroundService] 停止前台服务...")

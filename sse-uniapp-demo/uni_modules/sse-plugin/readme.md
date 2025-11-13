@@ -43,6 +43,10 @@ sseConnectApi({
   url: 'http://localhost:3000/sse',
   requestId,
   headers: { 'User-Agent': 'UniApp-X-SSE-Plugin' },
+  foregroundEnabled: true,
+  notifications: 'auto',
+  wakeLockEnabled: true,
+  wifiLockEnabled: true,
   fail: (err) => console.error('connect fail', err)
 })
 
@@ -62,6 +66,16 @@ export type SSEConnectOptions = {
   url: string
   headers?: UTSJSONObject
   requestId?: string
+  // Android 前台服务配置（可选）
+  foregroundEnabled?: boolean
+  foregroundChannelId?: string
+  foregroundChannelName?: string
+  foregroundTitle?: string
+  foregroundText?: string
+  foregroundImportance?: 'min' | 'low' | 'default' | 'high' | 'max'
+  notifications?: true | false | 'auto'
+  wakeLockEnabled?: boolean
+  wifiLockEnabled?: boolean
   success?: (res: SSEConnectResult) => void
   fail?: (res: SSEApiFail) => void
   complete?: (res: any) => void
@@ -83,4 +97,3 @@ export declare const closeAllSSEConnections: () => void
 ```
 
 注意：插件会与浏览器一致过滤部分不安全/受限请求头（如 `accept-encoding`、`cookie`、`content-length`、`origin`、`referer`、以 `sec-`/`proxy-` 开头等）。
-
