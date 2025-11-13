@@ -239,6 +239,7 @@ export default {
       const idx = this.connections.findIndex(c => c.requestId === requestId);
       if (idx < 0) return;
       const conn = this.connections[idx];
+      conn.foregroundEnabled = this.enableForeground as boolean;
       conn.status = '连接中…';
       const finalUrl = this.resolveUrlForAndroid(conn.url);
       if (finalUrl !== conn.url) {

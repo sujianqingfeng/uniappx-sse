@@ -24,6 +24,7 @@ import { createSSEError } from '../unierror.uts';
 import SSEManager from 'uts.sdk.modules.ssePlugin.SSEManager';
 import SseForegroundService from 'uts.sdk.modules.ssePlugin.SseForegroundService';
 import Build from 'android.os.Build';
+import { UTSAndroid, UTSArray } from 'io.dcloud.uts';
 
 // 全局 SSE 管理器单例
 let sseManager: SSEManager | null = null;
@@ -131,43 +132,86 @@ function resolveAndroidLoopback(url: string): string {
 }
 
 // 前台服务重要性映射
-function mapImportance(importance: 'min' | 'low' | 'default' | 'high' | 'max'): number {
+function mapImportance(importance: 'min' | 'low' | 'default' | 'high' | 'max'): Int {
   switch (importance) {
-    case 'min': return 1; // NotificationManager.IMPORTANCE_MIN
-    case 'low': return 2; // NotificationManager.IMPORTANCE_LOW
-    case 'default': return 3; // NotificationManager.IMPORTANCE_DEFAULT
-    case 'high': return 4; // NotificationManager.IMPORTANCE_HIGH
-    case 'max': return 5; // NotificationManager.IMPORTANCE_MAX
-    default: return 2; // 默认 IMPORTANCE_LOW
+    case 'min': return 1 as Int; // NotificationManager.IMPORTANCE_MIN
+    case 'low': return 2 as Int; // NotificationManager.IMPORTANCE_LOW
+    case 'default': return 3 as Int; // NotificationManager.IMPORTANCE_DEFAULT
+    case 'high': return 4 as Int; // NotificationManager.IMPORTANCE_HIGH
+    case 'max': return 5 as Int; // NotificationManager.IMPORTANCE_MAX
+    default: return 2 as Int; // 默认 IMPORTANCE_LOW
   }
 }
 
-// 检查并请求通知权限（Android 13+）
-function checkAndRequestNotificationPermission(strategy: true | false | 'auto'): boolean {
+function ensureNotificationPermissionIfRequired(
+  strategy: true | false | 'auto',
+  onGranted: () => void,
+  onDenied: (message: string) => void
+): void {
   if (strategy === false) {
-    return false; // 不需要通知权限
+    onGranted();
+    return;
   }
-  
-  // 获取 Android API 级别
+
+  let sdkInt = 0;
   try {
-    const SDK_INT = Build.VERSION.SDK_INT;
-    
-    if (SDK_INT < 33) {
-      return true; // Android 13 以下不需要通知权限
+    sdkInt = Build.VERSION.SDK_INT;
+  } catch (_) {
+    onGranted();
+    return;
+  }
+
+  if (sdkInt < 33) {
+    onGranted();
+    return;
+  }
+
+  const activity = UTSAndroid.getUniActivity();
+  if (activity == null) {
+    onDenied('无法获取 Activity 以申请通知权限');
+    return;
+  }
+
+  const permissions = ['android.permission.POST_NOTIFICATIONS'];
+  let settled = false;
+
+  const markGranted = (allGranted: boolean) => {
+    if (settled) return;
+    settled = true;
+    if (allGranted) {
+      onGranted();
+    } else {
+      onDenied('通知权限被拒绝');
     }
-  } catch (e) {
-    // 获取 API 级别失败，假设支持通知
-    return true;
+  };
+
+  const markDenied = (doNotAskAgain?: boolean) => {
+    if (settled) return;
+    settled = true;
+    const suffix = doNotAskAgain === true ? '，且选择了“不要再询问”' : '';
+    onDenied(`通知权限被拒绝${suffix}`);
+  };
+
+  try {
+    UTSAndroid.requestSystemPermission(
+      activity,
+      permissions,
+      (allGranted: boolean, grantedList: UTSArray<string>) => {
+        markGranted(allGranted === true);
+      },
+      (doNotAskAgain: boolean, _: UTSArray<string>) => {
+        markDenied(doNotAskAgain);
+      }
+    );
+  } catch (err) {
+    const errMsg = `${err}`;
+    if (errMsg.indexOf('targetSdkVersion') !== -1 || errMsg.indexOf('POST_NOTIFICATIONS') !== -1) {
+      console.log('[index.uts] targetSdk < 33，系统禁止申请通知权限，视为已授权');
+      onGranted();
+      return;
+    }
+    onDenied(`申请通知权限失败: ${errMsg}`);
   }
-  
-  // Android 13+ 需要通知权限
-  if (strategy === true) {
-    // 强制要求权限，但实际需要在 Activity 环境中申请
-    return false;
-  }
-  
-  // 'auto' 模式：返回 true 表示可以继续，实际权限检查在原生层处理
-  return true;
 }
 
 // 过滤与浏览器端一致的不安全/受限头部键名
@@ -205,92 +249,85 @@ function isForbiddenHeaderName(name: string): boolean {
  * SSE 连接 API
  */
 export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
-  try {
-    const manager = getSSEManager();
-    const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
-    // 多连接：不再取消其他连接
+  const manager = getSSEManager();
+  const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
+  const fgEnabled = options.foregroundEnabled === true;
+  const wakeLockEnabled = (options.wakeLockEnabled == null) ? true : options.wakeLockEnabled === true;
+  const notificationStrategy = options.notifications ?? 'auto';
 
-    // 解析前台服务配置
-    const fgEnabled = options.foregroundEnabled === true;
-    const wakeLockEnabled = (options.wakeLockEnabled == null) ? true : options.wakeLockEnabled === true;
-    const notificationStrategy = options.notifications ?? 'auto';
-    
-    // 配置前台服务（如果启用）
-    if (fgEnabled) {
-      console.log(`[index.uts] 🔒 前台服务已启用 (requestId=${requestId})`);
-      
-      // 检查通知权限策略
-      console.log(`[index.uts] 检查通知权限 (strategy=${notificationStrategy})`);
-      if (!checkAndRequestNotificationPermission(notificationStrategy)) {
-        console.log("[index.uts] ❌ 通知权限检查失败");
-        const failError = createSSEError(9020004, "前台服务需要通知权限，请检查权限设置");
-        options.fail?.(failError);
-        options.complete?.(failError);
-        return;
-      }
-      console.log("[index.uts] ✅ 通知权限检查通过");
-      
-      // 配置前台服务参数
-      const importance = options.foregroundImportance != null ? mapImportance(options.foregroundImportance!) : 2; // 默认 IMPORTANCE_LOW
-      const channelId = options.foregroundChannelId ?? 'sse_channel';
-      const channelName = options.foregroundChannelName ?? 'SSE';
-      const title = options.foregroundTitle ?? 'SSE 正在保持连接';
-      const text = options.foregroundText ?? '后台保持连接以接收消息';
-      
-      console.log(`[index.uts] 前台服务配置: channelId=${channelId}, importance=${importance}`);
-      console.log(`[index.uts] WakeLock: ${wakeLockEnabled}, 通知: "${title}"`);
-      
-      try {
-        // 这里使用静态方法配置，避免直接实例化 Service
-        // 实际配置会在启动服务时应用
-        console.log("[index.uts] 前台服务配置准备完成");
-      } catch (e) {
-        console.log(`[index.uts] ❌ 前台服务配置失败: ${e}`);
-        const errorMessage = `前台服务配置失败: ${e}`;
-        const failError = createSSEError(9020005, errorMessage);
-        options.fail?.(failError);
-        options.complete?.(failError);
-        return;
-      }
-    } else {
-      console.log(`[index.uts] 前台服务未启用 (requestId=${requestId})`);
-    }
-
-    // 将 headers 安全序列化为 JSON 字符串，交由原生层解析并过滤
-    const finalUrl = resolveAndroidLoopback(options.url);
-    let headersJson: string | null = null;
-    try {
-      if (options.headers != null) {
-        // 可选：如需在 UTS 侧做基础过滤，可在此基于 isForbiddenHeaderName 复制一份对象再 stringify
-        headersJson = JSON.stringify(options.headers as any);
-      }
-    } catch (_) {
-      headersJson = null;
-    }
-    
-    // 使用支持前台服务的新接口
-    console.log(`[index.uts] 调用 SSEManager.startConnectionWithHeadersJson (url=${finalUrl}, fg=${fgEnabled}, wake=${wakeLockEnabled})`);
-    if (fgEnabled) {
-      manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback, fgEnabled, wakeLockEnabled);
-    } else {
-      // 使用原有接口，保持向后兼容
-      manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback);
-    }
-    console.log(`[index.uts] ✅ SSEManager 调用完成`);
-    
-    const result: SSEConnectResult = {
-      requestId: requestId,
-      message: "Connection started"
-    };
-    
-    options.success?.(result);
-    options.complete?.(result);
-    
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to start SSE connection";
+  const dispatchGeneralFailure = (error: any) => {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to start SSE connection';
     const failError = createSSEError(9020001, errorMessage);
     options.fail?.(failError);
     options.complete?.(failError);
+  };
+
+  const runConnection = () => {
+    try {
+      if (fgEnabled) {
+        console.log(`[index.uts] 🔒 前台服务已启用 (requestId=${requestId})`);
+
+        const importance: Int = options.foregroundImportance != null ? mapImportance(options.foregroundImportance!) : 2 as Int;
+        const channelId = options.foregroundChannelId ?? 'sse_channel';
+        const channelName = options.foregroundChannelName ?? 'SSE';
+        const title = options.foregroundTitle ?? 'SSE 正在保持连接';
+        const text = options.foregroundText ?? '后台保持连接以接收消息';
+
+        SseForegroundService.configure(channelId, channelName, importance, title, text);
+
+        console.log(`[index.uts] 前台服务配置: channelId=${channelId}, importance=${importance}`);
+        console.log(`[index.uts] WakeLock: ${wakeLockEnabled}, 通知: "${title}"`);
+      } else {
+        console.log(`[index.uts] 前台服务未启用 (requestId=${requestId})`);
+      }
+
+      const finalUrl = resolveAndroidLoopback(options.url);
+      let headersJson: string | null = null;
+      try {
+        if (options.headers != null) {
+          headersJson = JSON.stringify(options.headers as any);
+        }
+      } catch (_) {
+        headersJson = null;
+      }
+
+      console.log(`[index.uts] 调用 SSEManager.startConnectionWithHeadersJson (url=${finalUrl}, fg=${fgEnabled}, wake=${wakeLockEnabled})`);
+      if (fgEnabled) {
+        manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback, fgEnabled, wakeLockEnabled);
+      } else {
+        manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback);
+      }
+      console.log('[index.uts] ✅ SSEManager 调用完成');
+
+      const result: SSEConnectResult = {
+        requestId: requestId,
+        message: 'Connection started'
+      };
+
+      options.success?.(result);
+      options.complete?.(result);
+    } catch (error) {
+      dispatchGeneralFailure(error);
+    }
+  };
+
+  if (fgEnabled && notificationStrategy !== false) {
+    console.log(`[index.uts] 检查通知权限 (strategy=${notificationStrategy})`);
+    ensureNotificationPermissionIfRequired(
+      notificationStrategy,
+      () => {
+        console.log('[index.uts] ✅ 通知权限就绪');
+        runConnection();
+      },
+      (message: string) => {
+        console.log(`[index.uts] ❌ 通知权限失败: ${message}`);
+        const failError = createSSEError(9020004, `前台服务需要通知权限：${message}`);
+        options.fail?.(failError);
+        options.complete?.(failError);
+      }
+    );
+  } else {
+    runConnection();
   }
 };
 
@@ -348,4 +385,3 @@ export function closeAllSSEConnections(): void {
   listenersByRequestId.clear();
   globalListeners = [];
 }
-

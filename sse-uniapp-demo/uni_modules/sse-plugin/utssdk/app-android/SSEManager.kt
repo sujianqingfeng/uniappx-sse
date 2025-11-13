@@ -223,7 +223,9 @@ class SSEManager private constructor() {
                     logError("启动前台服务失败", e)
                     // 回滚计数
                     fgRefCount.decrementAndGet()
+                    connections.remove(requestId)
                     handle.useForeground = false
+                    throw RuntimeException("Failed to start foreground service: ${e.message}", e)
                 }
             } else {
                 console.log("[SSEManager] 前台服务已在运行，计数: $count")
@@ -399,5 +401,4 @@ class SSEManager private constructor() {
         connections.clear()
     }
 }
-
 
