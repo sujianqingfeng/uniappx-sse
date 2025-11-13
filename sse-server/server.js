@@ -4,6 +4,12 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+const log = (...args) => {
+  const timestamp = new Date().toISOString()
+  console.log(`[${timestamp}]`, ...args)
+}
 
 // Enable CORS for all routes
 app.use(cors());
@@ -21,12 +27,12 @@ app.get('/sse', (req, res) => {
   
   // Set a unique ID for this connection
   const clientId = Date.now();
-  console.log(`New SSE connection: ${clientId}`);
+  log(`New SSE connection: ${clientId}`);
   
   // Check for custom headers
   const authHeader = req.headers.authorization;
   const userAgent = req.headers['user-agent'];
-  console.log(`Client connected with headers - Auth: ${authHeader}, User-Agent: ${userAgent}`);
+  log(`Client connected with headers - Auth: ${authHeader}, User-Agent: ${userAgent}`);
   
   // Send a welcome message
   res.write(`data: Welcome to the SSE server! Your connection ID is ${clientId}\n\n`);
@@ -95,13 +101,13 @@ app.get('/sse', (req, res) => {
   
   // Handle client disconnect
   req.on('close', () => {
-    console.log(`SSE connection closed: ${clientId}`);
+    log(`SSE connection closed: ${clientId}`);
     clearInterval(interval);
   });
   
   // Handle errors
   req.on('error', (err) => {
-    console.error(`SSE connection error for ${clientId}:`, err);
+    console.error(`[${new Date().toISOString()}] SSE connection error for ${clientId}:`, err);
     clearInterval(interval);
   });
 });
@@ -117,7 +123,7 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`SSE Server is running on http://localhost:${PORT}`);
-  console.log(`SSE endpoint: http://localhost:${PORT}/sse`);
+app.listen(PORT, HOST, () => {
+  log(`SSE Server is running on http://${HOST}:${PORT}`);
+  log(`SSE endpoint: http://${HOST}:${PORT}/sse`);
 });
