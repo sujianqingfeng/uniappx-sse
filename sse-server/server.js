@@ -1,9 +1,21 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const RETRY_INTERVAL = 3000;
+const BASE64_BYTES = 2048;
+
+const generateBase64Payload = () => {
+  const randomBase64 = crypto.randomBytes(BASE64_BYTES).toString('base64');
+  return {
+    type: 'money',
+    data: randomBase64,
+    msg: '成功'
+  };
+};
 
 // Enable CORS for all routes
 app.use(cors());
@@ -28,70 +40,41 @@ app.get('/sse', (req, res) => {
   const userAgent = req.headers['user-agent'];
   console.log(`Client connected with headers - Auth: ${authHeader}, User-Agent: ${userAgent}`);
   
-  // Send a welcome message
-  res.write(`data: Welcome to the SSE server! Your connection ID is ${clientId}\n\n`);
-  
   // Function to send events
-  const sendEvent = (data, event = null, id = null) => {
+  const sendEvent = (data, options = {}) => {
+    const { event = null, retry = null } = options;
+    const payload = typeof data === 'string' ? data : JSON.stringify(data);
     let eventData = '';
-    if (id) eventData += `id: ${id}\n`;
+    eventData += `data: ${payload}\n`;
     if (event) eventData += `event: ${event}\n`;
-    eventData += `data: ${JSON.stringify(data)}\n\n`;
+    if (retry) eventData += `retry: ${retry}\n`;
+    eventData += `\n`;
     res.write(eventData);
   };
+
+  // Initial handshake payload expected by clients
+  sendEvent({
+    code: 200,
+    msg: 'SSE连接成功',
+    clientId: String(clientId)
+  }, { event: 'message', retry: RETRY_INTERVAL });
   
-  // Send different types of test data
-  let counter = 1;
-  const interval = setInterval(() => {
-    // Randomly send different types of events
-    const eventType = Math.floor(Math.random() * 4);
-    
-    switch (eventType) {
-      case 0:
-        // Regular message
-        const message = {
-          timestamp: new Date().toISOString(),
-          message: `Server time is ${new Date().toLocaleTimeString()}`,
-          clientId: clientId
-        };
-        sendEvent(message, 'message');
-        break;
-        
-      case 1:
-        // Notification event
-        const notification = {
-          id: counter++,
-          title: "New Notification",
-          body: "This is a test notification from the server",
-          timestamp: new Date().toISOString()
-        };
-        sendEvent(notification, 'notification');
-        break;
-        
-      case 2:
-        // Status update event
-        const status = {
-          id: counter++,
-          user: "user" + Math.floor(Math.random() * 100),
-          status: ["online", "offline", "away"][Math.floor(Math.random() * 3)],
-          timestamp: new Date().toISOString()
-        };
-        sendEvent(status, 'status');
-        break;
-        
-      case 3:
-        // Data update event
-        const dataUpdate = {
-          id: counter++,
-          type: "data_update",
-          value: Math.random() * 100,
-          unit: ["kb", "mb", "gb"][Math.floor(Math.random() * 3)],
-          timestamp: new Date().toISOString()
-        };
-        sendEvent(dataUpdate, 'data');
-        break;
+  const sendBase64Payload = () => {
+    try {
+      const payload = generateBase64Payload();
+      sendEvent(payload, { event: 'message', retry: RETRY_INTERVAL });
+    } catch (error) {
+      console.error('Failed to generate base64 payload for SSE:', error);
+      sendEvent({
+        type: 'error',
+        msg: 'base64_generator_failed',
+        detail: error.message
+      }, { event: 'message', retry: RETRY_INTERVAL });
     }
-  }, 3000);
+  };
+  
+  sendBase64Payload();
+  const interval = setInterval(sendBase64Payload, 5000);
   
   // Handle client disconnect
   req.on('close', () => {
