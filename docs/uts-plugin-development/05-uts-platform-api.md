@@ -1,5 +1,12 @@
 # UTS平台API调用指南
 
+> 同步说明（来源：官方文档）
+> - 对齐页面：
+>   - UTS 插件介绍（https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html）
+>   - UTSAndroid / UTSiOS / UTSHarmony API 参考
+> - 同步时间：2025-09-13
+> - 版本要点：Android minSdk 21；Kotlin 2.2.0（HX 4.81 起）、ArkTS（HX 4.22+）
+
 ## 概述
 
 UTS作为跨平台语言的核心优势之一是能够直接调用各个平台的原生API。本章详细介绍如何在UTS中调用Android、iOS、Web等平台的原生API。
@@ -1214,3 +1221,32 @@ export class TypeSafePlatformAPI {
 ```
 
 通过这种方式，UTS能够充分利用各个平台的原生能力，同时保持代码的跨平台兼容性和类型安全。
+## 参考跳转表（官方）
+
+- UTSAndroid API：https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html
+- UTSiOS API：https://doc.dcloud.net.cn/uni-app-x/uts/utsios.html
+- UTSHarmony API：https://doc.dcloud.net.cn/uni-app-x/uts/utsharmony.html
+## Import 快速参考
+
+- Android（UTSAndroid）
+
+```ts
+import { UTSAndroid } from 'io.dcloud.uts'
+```
+
+- iOS（UTSiOS）
+
+```ts
+import { UTSiOS } from 'DCloudUTSFoundation'
+```
+
+- HarmonyOS（UTSHarmony）
+
+请参考官方 API 页面（可能随版本更新而变化）：
+https://doc.dcloud.net.cn/uni-app-x/uts/utsharmony.html
+
+## 本地精要页
+
+- Android 精要参考：`./11-utsandroid.md`
+- iOS 精要参考：`./12-utsios.md`
+- HarmonyOS 增强：`./13-harmony-uts-enhanced.md`

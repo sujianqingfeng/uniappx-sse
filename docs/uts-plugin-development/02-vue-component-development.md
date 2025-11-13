@@ -1,5 +1,14 @@
 # Vue组件开发详解
 
+> 同步说明（来源：官方文档）
+> - 关联页面：UTS 插件介绍（https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html）
+> - 同步时间：2025-09-13
+> - 版本要点：
+>   - uni-app：HBuilderX 3.6+ 可使用 UTS 插件
+>   - uni-app x：HBuilderX 3.9+ 可使用 UTS 插件
+>   - Android：minSdkVersion = 21；Kotlin 2.2.0（HX 4.81 起）
+>   - HarmonyOS ArkTS：HBuilderX 4.22+ 起支持
+
 ## 概述
 
 Vue组件层是UTS组件的前端接口，负责处理业务逻辑、状态管理、事件处理以及与原生层的通信。本章详细介绍如何开发UTS组件的Vue层。
@@ -653,6 +662,54 @@ function isValidProps(props: any): props is StrictComponentProps {
 ```
 
 ### 3. 性能优化策略
+
+## 快速上手路径
+
+1) 搭建组件壳
+- 新建 `.uvue` 文件，模板放置 `native-view`；在 `script setup lang="uts"` 中导入 `ref/watch`
+
+2) 定义接口
+- 用 TS 定义 `Props/Emits`，通过 `defineProps/defineEmits` 绑定属性与事件
+- 通过 `defineExpose` 暴露必要的外部方法
+
+3) 初始化原生视图
+- 监听 `native-view @init`，创建/绑定原生实例，设置初始属性
+- 使用 `watch` 同步 props 变化到原生实例
+
+4) 事件桥接
+- 原生层派发事件，Vue 层通过 `@customEvent` 接收并 `emits`
+
+5) 调试与优化
+- 真机运行检查 UI/权限/资源
+- UI 更新在主线程；耗时任务使用 UTS 调度器 `main/io/default`
+- 减少跨层通信，避免频繁重绘
+
+参考：
+- 组件概述（结构与术语）：./01-uts-component-overview.md
+- Android 原生实现要点：./03-android-native-implementation.md
+- iOS 原生实现要点：./08-ios-uts-enhanced.md
+
+## 官方参考
+
+- Vue（uvue）指南：https://doc.dcloud.net.cn/uni-app-x/vue/
+- 组件文档（概览）：https://doc.dcloud.net.cn/uni-app-x/component/
+- 原生开发（概览）：https://doc.dcloud.net.cn/uni-app-x/native/
+- UTS 插件介绍（与组件协同）：https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html
+- UTS 平台 API（原生交互）：
+  - Android：https://doc.dcloud.net.cn/uni-app-x/uts/utsandroid.html
+  - iOS：https://doc.dcloud.net.cn/uni-app-x/uts/utsios.html
+
+## 术语对照
+
+- uvue：uni-app x 的 Vue 渲染框架（组合式 API + UTS）
+- native-view：原生视图容器（Vue 模板中承载原生 UI 的占位标签）
+- props / emits / slots：与 Vue 3 一致的属性/事件/插槽机制（推荐 TS 类型约束）
+- defineExpose：向父组件暴露方法，仅暴露稳定且必要的外部接口
+- 组件上下文（Component Context）：对外开放的上下文对象/方法集合
+- 事件命名：统一小驼峰/连字符命名，避免平台差异导致的订阅失败
+- 样式范围：优先使用局部样式，避免影响 native-view 外部布局
+- 主线程/异步：UI 更新在主线程；耗时任务使用 UTS 调度器（main/io/default）
+- 平台差异：条件编译 `#ifdef APP-ANDROID/APP-IOS/APP-HARMONY` 隔离平台特有逻辑
 
 - 使用 `shallowRef` 和 `shallowReactive` 减少响应式开销
 - 合理使用 `computed` 缓存计算结果
