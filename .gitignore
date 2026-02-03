@@ -9,3 +9,4 @@ SSEFramework/build
 build
 .DS_Store
 node_modules
+sse-server/base64*.txt
