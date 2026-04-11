@@ -1,22 +1,22 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The repo is organized per platform so you can work in parallel. `sse-uniapp-demo/` and `sse-uniapp-v3-demo/` host the uvue/uts and Vue3 demos, each embedding `uni_modules/sse-plugin/` where the shared UTS, JS, and platform bridges live. Native libraries live in `sse-android/` and `sse-ios-framework/`, while `sse-ios-demo/` consumes the built Framework for smoke tests. `sse-server/` provides the Express-based SSE endpoint, and `scripts/` plus `docs/` collect helper utilities and deeper guides. Keep screenshots and marketing artifacts under `screenshots/`.
+The repo now centers on two demo apps plus the local SSE server. `sse-uniapp-demo/` hosts the uni-app X example and embeds the plugin at `uni_modules/sse-plugin/`. `sse-uniapp-v3-demo/` hosts the Vue3 uni-app example and embeds the plugin at `uni_modules/hens-sse/`. Native Android and iOS implementations live inside those plugin directories under `utssdk/app-android/` and `utssdk/app-ios/`, not as standalone top-level projects. `sse-server/` provides the Express-based SSE endpoint, `scripts/` contains helper scripts, `docs/` stores deeper notes, and `screenshots/` is reserved for demo assets.
 
 ## Build, Test & Development Commands
 - `cd sse-server && pnpm install && pnpm dev` — boots the local SSE endpoint at `http://localhost:3000/sse`.
-- `cd sse-android && ./build-aar.sh -e debug|release|release-minified` — assembles the Android AAR and copies it into the demo plugin libs.
-- `cd sse-ios-framework && ./build-framework.sh [-d|-u|--clean]` — builds the Swift framework (device, simulator, or fat).
-- Use HBuilderX to run `sse-uniapp-demo` or `sse-uniapp-v3-demo` against Web, Android, or iOS for integration checks.
+- Use HBuilderX to run `sse-uniapp-demo` against Web, Android, or iOS for uni-app X integration checks.
+- Use HBuilderX to run `sse-uniapp-v3-demo` against Web, Android, or iOS for Vue3 uni-app integration checks.
+- `bash scripts/rename-template.sh` — applies the template rename flow when cloning this repo into a new plugin/demo variant.
 
 ## Coding Style & Naming Conventions
-UTS/TS/JS files use 2-space indentation, semicolons omitted, camelCase for functions, PascalCase for exported types, and keep request identifiers in the `sse_<timestamp>` format used in `sseConnectApi`. Kotlin/Java follows Android defaults (4 spaces, `SseService`-style class names) and Swift mirrors Apple’s guidelines (UpperCamel types, lowerCamel members). Run `pnpm format` if you add Prettier configs; otherwise align with existing files before committing.
+UTS, TS, and JS files use 2-space indentation, semicolons omitted, camelCase for functions, and PascalCase for exported types. Keep request identifiers in the `sse_<timestamp>` format used by `sseConnectApi`. Kotlin under `utssdk/app-android/` follows standard Android formatting with 4-space indentation and `SSEManager`-style class names. Swift under `utssdk/app-ios/` follows Apple naming conventions. If you add formatting tooling, align it with the existing files rather than reformatting the repo opportunistically.
 
 ## Testing Guidelines
-There is no automated unit suite yet, so treat platform demos as acceptance tests. Always run `pnpm dev` in `sse-server/` and point clients to `http://10.0.2.2:3000/sse` when emulating Android. For iOS, verify ATS exceptions before pushing. Name manual test docs `TEST-<module>-<date>.md` under `docs/` when you capture repro steps.
+There is no automated unit suite yet, so treat the demos as acceptance tests. Start `sse-server/` before manual verification, and use `http://10.0.2.2:3000/sse` when testing Android emulators. Android cleartext access depends on the demo `network_security_config.xml`, currently present under `sse-uniapp-v3-demo/nativeResources/android/res/xml/`. For iOS HTTP testing, verify the app ATS settings before pushing. Name manual test notes `TEST-<module>-<date>.md` under `docs/` when capturing reproducible steps.
 
 ## Commit & Pull Request Guidelines
-Follow conventional commits (`chore: readme`, `fix: ios reconnect`) as seen in `git log`. Scope commits per platform to keep diffs reviewable, and reference issues in the body (`Refs #123`). PRs must summarize platform impact, list tested targets (Web/Android/iOS), attach screenshots or console logs for UI/regression changes, and mention any new headers/configurations. Keep branches rebased before requesting review.
+Follow conventional commits such as `chore: readme` or `fix: ios reconnect`, matching the existing history. Keep commits scoped to one concern or one platform area when possible, and reference issues in the body with `Refs #123`. PRs should summarize impact by target platform, list what was tested, and include screenshots or logs for behavior changes. Rebase before requesting review.
 
 ## Security & Configuration Tips
-Avoid checking real API keys into `uni_modules/sse-plugin/utssdk`. Android debugging relies on `network_security_config.xml`; confirm local domains are whitelisted. iOS builds that need HTTP must update `Info.plist` with ATS overrides and revert before release.
+Avoid checking real API keys or secrets into either plugin directory, especially under `sse-uniapp-demo/uni_modules/sse-plugin/utssdk/` and `sse-uniapp-v3-demo/uni_modules/hens-sse/utssdk/`. When testing Android against local HTTP endpoints, confirm the demo network security configuration still whitelists the required host. For iOS, keep ATS exceptions limited to development scenarios and review them before release.
