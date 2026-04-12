@@ -112,6 +112,78 @@ app.get('/sse', (req, res) => {
   });
 });
 
+app.get('/line-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+
+  const clientId = Date.now()
+  log(`New line stream connection: ${clientId}`)
+
+  res.write(`hello line stream ${clientId}\n`)
+  let counter = 1
+  const interval = setInterval(() => {
+    res.write(`line ${counter} @ ${new Date().toISOString()}\n`)
+    counter += 1
+  }, 2000)
+
+  req.on('close', () => {
+    clearInterval(interval)
+    log(`Line stream closed: ${clientId}`)
+  })
+})
+
+app.get('/jsonl-stream', (req, res) => {
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+
+  const clientId = Date.now()
+  log(`New JSONL stream connection: ${clientId}`)
+
+  let counter = 1
+  const send = () => {
+    const payload = {
+      clientId,
+      counter,
+      now: new Date().toISOString(),
+      random: Number((Math.random() * 100).toFixed(2))
+    }
+    res.write(`${JSON.stringify(payload)}\n`)
+    counter += 1
+  }
+
+  send()
+  const interval = setInterval(send, 2000)
+  req.on('close', () => {
+    clearInterval(interval)
+    log(`JSONL stream closed: ${clientId}`)
+  })
+})
+
+app.get('/raw-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+
+  const clientId = Date.now()
+  log(`New raw stream connection: ${clientId}`)
+
+  let counter = 1
+  const interval = setInterval(() => {
+    res.write(`chunk-${counter}|${new Date().toISOString()}|`)
+    counter += 1
+  }, 1500)
+
+  req.on('close', () => {
+    clearInterval(interval)
+    log(`Raw stream closed: ${clientId}`)
+  })
+})
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

@@ -1,0 +1,129 @@
+import { StreamMessageEvent, StreamProtocol } from '../interface.uts'
+
+export type ParserResult = {
+  messages: StreamMessageEvent[]
+  rest: string
+}
+
+function parseDataText(dataText: string): any {
+  if (dataText.length == 0) return ''
+  try {
+    const parsedAny: any | null = JSON.parse(dataText)
+    if (parsedAny != null) return parsedAny
+  } catch (_) {}
+  return dataText
+}
+
+function makeMessage(rawText: string, event: string | null, id: string | null): StreamMessageEvent {
+  const msg: StreamMessageEvent = {
+    data: parseDataText(rawText),
+    rawText,
+  }
+  if (event != null && event.length > 0) msg.event = event
+  if (id != null && id.length > 0) msg.id = id
+  return msg
+}
+
+export function parseRawChunk(text: string): StreamMessageEvent[] {
+  return []
+}
+
+export function parseLineBuffer(buffer: string, final: boolean): ParserResult {
+  const messages: StreamMessageEvent[] = []
+  let rest = buffer
+  while (true) {
+    const idx = rest.indexOf('\n')
+    if (idx == -1) break
+    let line = rest.slice(0, idx)
+    if (line.endsWith('\r')) line = line.slice(0, -1)
+    rest = rest.slice(idx + 1)
+    messages.push(makeMessage(line, null, null))
+  }
+  if (final && rest.length > 0) {
+    let line = rest
+    if (line.endsWith('\r')) line = line.slice(0, -1)
+    messages.push(makeMessage(line, null, null))
+    rest = ''
+  }
+  return { messages, rest }
+}
+
+export function parseJsonlBuffer(buffer: string, final: boolean): ParserResult {
+  return parseLineBuffer(buffer, final)
+}
+
+export function parseSseBuffer(buffer: string, final: boolean): ParserResult {
+  const messages: StreamMessageEvent[] = []
+  let rest = buffer
+
+  while (true) {
+    let idx = rest.indexOf('\n\n')
+    let useCrlfSeparator = false
+    const altIdx = rest.indexOf('\r\n\r\n')
+    if (altIdx != -1 && (idx == -1 || altIdx < idx)) {
+      idx = altIdx
+      useCrlfSeparator = true
+    }
+    if (idx == -1) break
+
+    const block = rest.slice(0, idx)
+    if (useCrlfSeparator) {
+      rest = rest.slice(idx + 4)
+    } else {
+      rest = rest.slice(idx + 2)
+    }
+    const msg = parseSseBlock(block)
+    if (msg != null) messages.push(msg)
+  }
+
+  if (final && rest.length > 0) {
+    const msg = parseSseBlock(rest)
+    if (msg != null) messages.push(msg)
+    rest = ''
+  }
+
+  return { messages, rest }
+}
+
+function parseSseBlock(block: string): StreamMessageEvent | null {
+  const lines = block.split('\n')
+  let event: string | null = null
+  let id: string | null = null
+  const dataLines: string[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+    if (line.endsWith('\r')) line = line.slice(0, -1)
+    if (line.length == 0) continue
+    if (line.startsWith(':')) continue
+
+    const idx = line.indexOf(':')
+    const field = idx == -1 ? line : line.slice(0, idx)
+    let value = idx == -1 ? '' : line.slice(idx + 1)
+    if (value.startsWith(' ')) value = value.slice(1)
+
+    if (field == 'event') event = value
+    else if (field == 'id') id = value
+    else if (field == 'data') dataLines.push(value)
+  }
+
+  if ((event == null || event.length == 0) && (id == null || id.length == 0) && dataLines.length == 0) {
+    return null
+  }
+  const rawText = dataLines.join('\n')
+  return makeMessage(rawText, event, id)
+}
+
+export function parseBuffer(streamProtocol: StreamProtocol, buffer: string, final: boolean): ParserResult {
+  switch (streamProtocol) {
+    case 'line':
+      return parseLineBuffer(buffer, final)
+    case 'jsonl':
+      return parseJsonlBuffer(buffer, final)
+    case 'sse':
+      return parseSseBuffer(buffer, final)
+    case 'raw':
+    default:
+      return { messages: parseRawChunk(buffer), rest: final ? '' : buffer }
+  }
+}

@@ -1,213 +1,194 @@
-/**
- * 引用 iOS 系统库和 SSEFramework
- */
 import {
-	SSEConnectOptions,
-	SSEConnectResult,
-	SSEMessageEvent,
-	SSEErrorEvent,
-	SSECloseEvent,
-	SSEEventListenerOptions,
-	SSEConnectApi,
-	SSECloseApi,
-	SSEAddEventListenerApi,
-	SSERemoveEventListenerApi
-} from '../interface.uts';
+  StreamConnectOptions,
+  StreamConnection,
+  StreamOpenEvent,
+  StreamChunkEvent,
+  StreamProtocol,
+  StreamErrorCode,
+  StreamFail,
+  ConnectStream,
+  StreamMessageEvent,
+} from '../interface.uts'
+import { createStreamError } from '../unierror.uts'
+import { StreamConnectionImpl } from '../internal/runtime.uts'
+import { parseBuffer } from '../internal/parser.uts'
 
-import { createSSEError } from '../unierror.uts';
-
-/**
- * 引入 SSEFramework
- * Framework 位于 ./Frameworks 目录下
- */
-//import { SSEManager, SSEManagerDelegate } from 'SSEFramework';
-
-// 全局 SSE 管理器实例
-let sseManager : SSEManager | null = null;
-
-// 多连接监听器存储
-let listenersByRequestId : Map<string, SSEEventListenerOptions[]> = new Map();
-let globalListeners : SSEEventListenerOptions[] = [];
-
-// 持有委托的全局强引用，避免被释放
-let sseDelegateRef : SSEDelegateHandler | null = null;
-
-// 初始化 SSE 管理器
-function getSSEManager() : SSEManager {
-	if (sseManager == null) {
-		const manager = new SSEManager();
-		if (sseDelegateRef == null) {
-			sseDelegateRef = new SSEDelegateHandler();
-		}
-		manager.delegate = sseDelegateRef as SSEDelegateHandler;
-		sseManager = manager;
-	}
-	return sseManager as SSEManager;
+type StreamIOSBridgeContext = {
+  connection: StreamConnectionImpl
+  streamProtocol: StreamProtocol
+  buffer: string
 }
 
+const bridgeContexts: Map<string, StreamIOSBridgeContext> = new Map()
+let bridgeIndex = 0
+let managerCallbacksBound = false
 
-// SSE 代理处理器，实现 SSEManagerDelegate 协议
-class SSEDelegateHandler implements SSEManagerDelegate {
-	constructor() {
-	}
-
-	// 接收到消息
-	sseManagerMessage(manager: SSEManager, message: string, requestId: string) {
-    const event: SSEMessageEvent = { requestId: requestId, message: message };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onMessage;
-        if (cb != null) { cb(event); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onMessage;
-      if (gcb != null) { gcb(event); }
-    }
-	}
-
-	// 连接打开
-	sseManagerOpen(manager: SSEManager, requestId: string) {
-    const event: SSEConnectResult = { requestId: requestId, message: "Connection opened" };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onOpen;
-        if (cb != null) { cb(event); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onOpen;
-      if (gcb != null) { gcb(event); }
-    }
-	}
-
-	// 连接错误
-	sseManagerError(manager: SSEManager, errorMessage: string, requestId: string) {
-    const event: SSEErrorEvent = { requestId: requestId, error: errorMessage };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onError;
-        if (cb != null) { cb(event); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onError;
-      if (gcb != null) { gcb(event); }
-    }
-	}
-
-	// 连接关闭
-	sseManagerClose(manager: SSEManager, requestId: string) {
-    const event: SSECloseEvent = { requestId: requestId };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onClose;
-        if (cb != null) { cb(event); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onClose;
-      if (gcb != null) { gcb(event); }
-    }
-    // 关闭后清理该 requestId 的监听器
-    if (listenersByRequestId.has(requestId)) {
-      listenersByRequestId.delete(requestId);
-    }
-	}
+function nextRequestId(): string {
+  bridgeIndex += 1
+  return `stream_${Date.now()}_${bridgeIndex}`
 }
 
-/**
- * SSE 连接 API
- * 调用 SSEFramework 的 startConnection 方法
- */
-export const sseConnectApi : SSEConnectApi = function (options : SSEConnectOptions) {
-	try {
-		const manager = getSSEManager();
-    const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
+function normalizeProtocol(inputProtocol?: StreamProtocol | null): StreamProtocol {
+  if (inputProtocol == null) return 'sse'
+  return inputProtocol
+}
 
-		// 调用 SSEFramework 的 startConnection 方法
-		const headers = options.headers != null ? options.headers : {};
-		manager.startConnection(options.url, headers, requestId);
+function normalizeMethod(method?: string | null): string {
+  const value = `${method ?? 'GET'}`.trim().toUpperCase()
+  return value.length > 0 ? value : 'GET'
+}
 
-		const result : SSEConnectResult = {
-			requestId: requestId,
-			message: "Connection started"
-		};
-		options.success?.(result);
-		options.complete?.(result);
+function normalizeBodyText(options: StreamConnectOptions): string | null {
+  if (options.body == null) return null
+  if (typeof options.body == 'string') return options.body as string
+  return JSON.stringify(options.body) ?? null
+}
 
-	} catch (error) {
-		const failError = createSSEError(9020001, "Failed to start SSE connection");
-		options.fail?.(failError);
-		options.complete?.(failError);
-	}
-};
+function releaseContext(requestId: string): void {
+  bridgeContexts.delete(requestId)
+}
 
-/**
- * SSE 关闭连接 API
- * 调用 SSEFramework 的 cancelConnection 方法
- */
-export const sseCloseApi : SSECloseApi = function (requestId : string) {
-	try {
-		const manager = getSSEManager();
-		if (manager != null) {
-      manager.cancelConnection(requestId);
-		}
-	} catch (error) {
-	}
-};
+function handleOpen(requestId: string, statusCode: number, headers: UTSJSONObject): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
 
-/**
- * SSE 添加事件监听器 API
- * 为指定连接添加事件监听器
- */
-@UTSJS.keepAlive
-export function sseAddEventListenerApi(options : SSEEventListenerOptions) : void {
-  
-  const reqId = options.requestId;
-  if (reqId != null) {
-    const list = listenersByRequestId.get(reqId);
-    if (list == null) {
-      listenersByRequestId.set(reqId, [options]);
-    } else {
-      const merged : SSEEventListenerOptions[] = [];
-      for (let i = 0; i < list.length; i++) {
-        merged.push(list[i]);
-      }
-      merged.push(options);
-      listenersByRequestId.set(reqId, merged);
-    }
-  } else {
-    globalListeners.push(options);
+  const event: StreamOpenEvent = {
+    statusCode,
+    headers,
+  }
+  ctx.connection.emitOpen(event)
+
+  if (statusCode >= 400) {
+    const data: UTSJSONObject = {}
+    data['statusCode'] = statusCode
+    ctx.connection.emitError(createStreamError(9030004, `HTTP ${statusCode}`, data))
+    ctx.connection.finishOnce()
+    releaseContext(requestId)
   }
 }
 
-/**
- * SSE 移除事件监听器 API
- * 移除指定连接的事件监听器
- */
-export const sseRemoveEventListenerApi : SSERemoveEventListenerApi = function (requestId ?: string) {
-  if (requestId != null) {
-    if (listenersByRequestId.has(requestId)) {
-      listenersByRequestId.delete(requestId);
-    }
-  } else {
-    globalListeners = [];
-  }
-};
+function handleChunk(requestId: string, text: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+  if (text.length == 0) return
 
-/**
- * 关闭所有 SSE 连接
- */
-export function closeAllSSEConnections() : void {
-	const manager = getSSEManager();
-	if (manager != null) {
-    manager.cancelAllConnections();
-    listenersByRequestId.clear();
-    globalListeners = [];
-	}
+  ctx.connection.emitChunk(text)
+  if (ctx.streamProtocol == 'raw') return
+
+  ctx.buffer += text
+  const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, false)
+  ctx.buffer = parsed.rest
+  for (let i = 0; i < parsed.messages.length; i++) {
+    ctx.connection.emitMessage(parsed.messages[i] as StreamMessageEvent)
+  }
+}
+
+function handleError(requestId: string, message: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+  ctx.connection.emitError(createStreamError(9030003, message, null))
+  ctx.connection.finishOnce()
+  releaseContext(requestId)
+}
+
+function handleComplete(requestId: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+
+  if (ctx.streamProtocol != 'raw') {
+    const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, true)
+    ctx.buffer = parsed.rest
+    for (let i = 0; i < parsed.messages.length; i++) {
+      ctx.connection.emitMessage(parsed.messages[i] as StreamMessageEvent)
+    }
+  }
+
+  ctx.connection.finishOnce()
+  releaseContext(requestId)
+}
+
+function ensureManagerCallbacks(): void {
+  if (managerCallbacksBound) return
+  managerCallbacksBound = true
+
+  SSEStreamManager.shared.onOpen = (requestId: string, statusCode: number, headers: UTSJSONObject) => {
+    handleOpen(requestId, statusCode, headers)
+  }
+
+  SSEStreamManager.shared.onChunk = (requestId: string, text: string) => {
+    handleChunk(requestId, text)
+  }
+
+  SSEStreamManager.shared.onError = (requestId: string, message: string) => {
+    handleError(requestId, message)
+  }
+
+  SSEStreamManager.shared.onComplete = (requestId: string) => {
+    handleComplete(requestId)
+  }
+}
+
+export const connectStream: ConnectStream = function (options: StreamConnectOptions): StreamConnection {
+  const connection = new StreamConnectionImpl()
+  ensureManagerCallbacks()
+
+  if (options.url.length == 0) {
+    setTimeout(() => {
+      connection.emitError(createStreamError(9030002, 'Invalid stream URL', null))
+      connection.finishOnce()
+    }, 0)
+    return connection
+  }
+
+  const streamProtocol = normalizeProtocol(options.protocol)
+  const requestId = nextRequestId()
+  bridgeContexts.set(requestId, {
+    connection,
+    streamProtocol,
+    buffer: '',
+  })
+
+  connection.setAborter(() => {
+    SSEStreamManager.shared.abort(requestId)
+    releaseContext(requestId)
+  })
+
+  const method = normalizeMethod(options.method)
+  const timeout = options.timeout == null ? 60000 : options.timeout
+  const bodyText = normalizeBodyText(options)
+
+  setTimeout(() => {
+    const started = SSEStreamManager.shared.connect(
+      requestId,
+      options.url,
+      method,
+      streamProtocol,
+      timeout,
+      options.headers,
+      bodyText
+    )
+    if (!started) {
+      const ctx = bridgeContexts.get(requestId)
+      if (ctx != null) {
+        ctx.connection.emitError(createStreamError(9030002, 'Invalid stream URL', null))
+        ctx.connection.finishOnce()
+      }
+      releaseContext(requestId)
+    }
+  }, 0)
+
+  return connection
+}
+
+export { createStreamError }
+export {
+  StreamProtocol,
+  StreamErrorCode,
+  StreamFail,
+  StreamConnectOptions,
+  StreamOpenEvent,
+  StreamChunkEvent,
+  StreamMessageEvent,
+  StreamConnection,
+  ConnectStream,
 }

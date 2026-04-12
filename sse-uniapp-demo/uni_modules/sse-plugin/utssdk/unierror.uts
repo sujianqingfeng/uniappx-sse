@@ -1,48 +1,30 @@
-/* 此规范为 uni 规范，可以按照自己的需要选择是否实现 */
-import { SSEApiErrorCode, SSEApiFail } from "./interface.uts"
-/**
- * 错误主题
- * 注意：错误主题一般为插件名称，每个组件不同，需要使用时请更改。
- */
-export const UniErrorSubject = 'sse-plugin-api';
+import { StreamErrorCode, StreamFail } from './interface.uts'
 
+export const UniErrorSubject = 'sse-plugin-stream-api'
 
-/**
- * 错误信息
- * @UniError
- */
-export const SSEAPIErrors : Map<SSEApiErrorCode, string> = new Map([
-  /**
-   * 错误码及对应的错误信息
-   */
-  [9020001, 'Failed to start SSE connection'],
-  [9020002, 'SSE connection error'],
-  [9020003, 'Invalid SSE URL'],
-  [9020004, '前台服务需要通知权限，请检查权限设置'],
-  [9020005, '前台服务配置失败'],
-]);
+export const StreamErrors: Map<StreamErrorCode, string> = new Map([
+  [9030001, 'Invalid stream options'],
+  [9030002, 'Invalid stream URL'],
+  [9030003, 'Network request failed'],
+  [9030004, 'HTTP status error'],
+  [9030005, 'Stream decode failed'],
+  [9030006, 'Stream parse failed'],
+  [9030007, 'Platform not supported'],
+])
 
+export class StreamFailImpl extends UniError implements StreamFail {
+  override errCode: StreamErrorCode
 
-/**
- * 错误对象实现
- */
-export class SSEApiFailImpl extends UniError implements SSEApiFail {
-
-  /**
-   * 错误对象构造函数
-   */
-  constructor(errCode : SSEApiErrorCode, message?: string) {
-    super();
-    this.errSubject = UniErrorSubject;
-    this.errCode = errCode;
-    const mappedMsg = SSEAPIErrors.get(errCode);
-    this.errMsg = message != null ? message : (mappedMsg != null ? (mappedMsg as string) : "");
+  constructor(errCode: StreamErrorCode, message?: string, data?: UTSJSONObject | null) {
+    super()
+    this.errSubject = UniErrorSubject
+    this.errCode = errCode
+    const mapped = StreamErrors.get(errCode)
+    this.errMsg = message != null ? message : (mapped != null ? (mapped as string) : '')
+    this.data = data ?? null
   }
 }
 
-/**
- * 创建 SSE 错误对象的工具函数
- */
-export function createSSEError(code: SSEApiErrorCode, message?: string): SSEApiFail {
-  return new SSEApiFailImpl(code, message);
+export function createStreamError(code: StreamErrorCode, message?: string, data?: UTSJSONObject | null): StreamFail {
+  return new StreamFailImpl(code, message, data)
 }

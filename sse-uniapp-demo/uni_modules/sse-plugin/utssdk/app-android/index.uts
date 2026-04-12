@@ -1,388 +1,198 @@
-/**
- * Android SSE 插件实现
- * 使用 Kotlin 原生 SSE 管理器
- */
+import {
+  StreamConnectOptions,
+  StreamConnection,
+  StreamOpenEvent,
+  StreamChunkEvent,
+  StreamProtocol,
+  StreamErrorCode,
+  StreamFail,
+  ConnectStream,
+  StreamMessageEvent,
+} from '../interface.uts'
+import { createStreamError } from '../unierror.uts'
+import { StreamConnectionImpl } from '../internal/runtime.uts'
+import { parseBuffer } from '../internal/parser.uts'
 
-import { 
-  SSEConnectOptions, 
-  SSEConnectResult, 
-  SSEMessageEvent, 
-  SSEErrorEvent, 
-  SSECloseEvent, 
-  SSEEventListenerOptions,
-  SSEConnectApi,
-  SSECloseApi,
-  SSEAddEventListenerApi,
-  SSERemoveEventListenerApi
-} from '../interface.uts';
-
-import { createSSEError } from '../unierror.uts';
-
-/**
- * 引入 SSEManager 原生库
- */
-import SSEManager from 'uts.sdk.modules.ssePlugin.SSEManager';
-import SseForegroundService from 'uts.sdk.modules.ssePlugin.SseForegroundService';
-import Build from 'android.os.Build';
-import { UTSAndroid, UTSArray } from 'io.dcloud.uts';
-
-// 全局 SSE 管理器单例
-let sseManager: SSEManager | null = null;
-
-// 多连接监听器存储（与 iOS/web 对齐）
-let listenersByRequestId: Map<string, SSEEventListenerOptions[]> = new Map();
-let globalListeners: SSEEventListenerOptions[] = [];
-
-// 获取 SSE 管理器（单例）
-function getSSEManager(): SSEManager {
-  if (sseManager == null) {
-    sseManager = SSEManager.getInstance();
-  }
-  return sseManager as SSEManager;
+type StreamAndroidBridgeContext = {
+  connection: StreamConnectionImpl
+  streamProtocol: StreamProtocol
+  buffer: string
 }
 
-// 直接传递 UTSJSONObject，由 UTS → Kotlin 桥接完成到 Map<String, String>
+const bridgeContexts: Map<string, StreamAndroidBridgeContext> = new Map()
+let bridgeIndex = 0
 
-// Kotlin 回调实现，转发到 UTS 监听器
-class AndroidSSECallback implements SSEManager.SSECallback {
-  override onOpen(requestId: string) {
-    const evt: SSEConnectResult = { requestId, message: 'Connection opened' };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onOpen;
-        if (cb != null) { cb(evt); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onOpen;
-      if (gcb != null) { gcb(evt); }
-    }
+function nextRequestId(): string {
+  bridgeIndex += 1
+  return `stream_${Date.now()}_${bridgeIndex}`
+}
+
+function normalizeProtocol(inputProtocol?: StreamProtocol | null): StreamProtocol {
+  if (inputProtocol == null) return 'sse'
+  return inputProtocol
+}
+
+function normalizeMethod(method?: string | null): string {
+  const value = `${method ?? 'GET'}`.trim().toUpperCase()
+  return value.length > 0 ? value : 'GET'
+}
+
+function normalizeBodyText(options: StreamConnectOptions): string | null {
+  if (options.body == null) return null
+  if (typeof options.body == 'string') return options.body as string
+  return JSON.stringify(options.body) ?? null
+}
+
+function buildHeadersObject(keys: string[], values: string[]): UTSJSONObject {
+  const out = new UTSJSONObject()
+  const size = keys.length < values.length ? keys.length : values.length
+  for (let i = 0; i < size; i++) {
+    out.set(keys[i], values[i])
   }
-  override onMessage(message: string, requestId: string) {
-    const evt: SSEMessageEvent = { requestId, message };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onMessage;
-        if (cb != null) { cb(evt); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onMessage;
-      if (gcb != null) { gcb(evt); }
-    }
+  return out
+}
+
+function releaseContext(requestId: string): void {
+  bridgeContexts.delete(requestId)
+}
+
+function handleOpen(requestId: string, statusCode: number, headerKeys: string[], headerValues: string[]): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+
+  const event: StreamOpenEvent = {
+    statusCode,
+    headers: buildHeadersObject(headerKeys, headerValues),
   }
-  override onError(error: string, requestId: string) {
-    const evt: SSEErrorEvent = { requestId, error };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onError;
-        if (cb != null) { cb(evt); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onError;
-      if (gcb != null) { gcb(evt); }
-    }
-  }
-  override onClose(requestId: string) {
-    const evt: SSECloseEvent = { requestId };
-    const list = listenersByRequestId.get(requestId);
-    if (list != null) {
-      for (let i = 0; i < list.length; i++) {
-        const cb = list[i].onClose;
-        if (cb != null) { cb(evt); }
-      }
-    }
-    for (let i = 0; i < globalListeners.length; i++) {
-      const gcb = globalListeners[i].onClose;
-      if (gcb != null) { gcb(evt); }
-    }
-    // 关闭后清理该 requestId 的监听器
-    if (listenersByRequestId.has(requestId)) {
-      listenersByRequestId.delete(requestId);
-    }
+  ctx.connection.emitOpen(event)
+
+  if (statusCode >= 400) {
+    const data: UTSJSONObject = {}
+    data['statusCode'] = statusCode
+    ctx.connection.emitError(createStreamError(9030004, `HTTP ${statusCode}`, data))
+    ctx.connection.finishOnce()
+    releaseContext(requestId)
   }
 }
 
-const sseCallback = new AndroidSSECallback();
+function handleChunk(requestId: string, text: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+  if (text.length == 0) return
 
-// 将 localhost/127.0.0.1/::1 在 Android 模拟器上映射为 10.0.2.2
-function resolveAndroidLoopback(url: string): string {
-  let resolved = url;
-  if (resolved.length > 0) {
-    const patterns = [
-      '://localhost',
-      '://127.0.0.1',
-      '://[::1]'
-    ];
-    for (let i = 0; i < patterns.length; i++) {
-      const p = patterns[i];
-      if (resolved.indexOf(p) != -1) {
-        resolved = resolved.replace(p, '://10.0.2.2');
-      }
-    }
-  }
-  if (resolved !== url) {
-  } else {
-  }
-  return resolved;
-}
+  ctx.connection.emitChunk(text)
+  if (ctx.streamProtocol == 'raw') return
 
-// 前台服务重要性映射
-function mapImportance(importance: 'min' | 'low' | 'default' | 'high' | 'max'): Int {
-  switch (importance) {
-    case 'min': return 1 as Int; // NotificationManager.IMPORTANCE_MIN
-    case 'low': return 2 as Int; // NotificationManager.IMPORTANCE_LOW
-    case 'default': return 3 as Int; // NotificationManager.IMPORTANCE_DEFAULT
-    case 'high': return 4 as Int; // NotificationManager.IMPORTANCE_HIGH
-    case 'max': return 5 as Int; // NotificationManager.IMPORTANCE_MAX
-    default: return 2 as Int; // 默认 IMPORTANCE_LOW
+  ctx.buffer += text
+  const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, false)
+  ctx.buffer = parsed.rest
+  for (let i = 0; i < parsed.messages.length; i++) {
+    ctx.connection.emitMessage(parsed.messages[i] as StreamMessageEvent)
   }
 }
 
-function ensureNotificationPermissionIfRequired(
-  strategy: true | false | 'auto',
-  onGranted: () => void,
-  onDenied: (message: string) => void
-): void {
-  if (strategy === false) {
-    onGranted();
-    return;
-  }
+function handleError(requestId: string, message: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+  ctx.connection.emitError(createStreamError(9030003, message, null))
+  ctx.connection.finishOnce()
+  releaseContext(requestId)
+}
 
-  let sdkInt = 0;
-  try {
-    sdkInt = Build.VERSION.SDK_INT;
-  } catch (_) {
-    onGranted();
-    return;
-  }
+function handleComplete(requestId: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
 
-  if (sdkInt < 33) {
-    onGranted();
-    return;
-  }
-
-  const activity = UTSAndroid.getUniActivity();
-  if (activity == null) {
-    onDenied('无法获取 Activity 以申请通知权限');
-    return;
-  }
-
-  const permissions = ['android.permission.POST_NOTIFICATIONS'];
-  let settled = false;
-
-  const markGranted = (allGranted: boolean) => {
-    if (settled) return;
-    settled = true;
-    if (allGranted) {
-      onGranted();
-    } else {
-      onDenied('通知权限被拒绝');
+  if (ctx.streamProtocol != 'raw') {
+    const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, true)
+    ctx.buffer = parsed.rest
+    for (let i = 0; i < parsed.messages.length; i++) {
+      ctx.connection.emitMessage(parsed.messages[i] as StreamMessageEvent)
     }
-  };
+  }
 
-  const markDenied = (doNotAskAgain?: boolean) => {
-    if (settled) return;
-    settled = true;
-    const suffix = doNotAskAgain === true ? '，且选择了“不要再询问”' : '';
-    onDenied(`通知权限被拒绝${suffix}`);
-  };
+  ctx.connection.finishOnce()
+  releaseContext(requestId)
+}
 
-  try {
-    UTSAndroid.requestSystemPermission(
-      activity,
-      permissions,
-      (allGranted: boolean, grantedList: UTSArray<string>) => {
-        markGranted(allGranted === true);
+export const connectStream: ConnectStream = function (options: StreamConnectOptions): StreamConnection {
+  const connection = new StreamConnectionImpl()
+
+  if (options.url.length == 0) {
+    setTimeout(() => {
+      connection.emitError(createStreamError(9030002, 'Invalid stream URL', null))
+      connection.finishOnce()
+    }, 0)
+    return connection
+  }
+
+  const streamProtocol = normalizeProtocol(options.protocol)
+  const requestId = nextRequestId()
+  bridgeContexts.set(requestId, {
+    connection,
+    streamProtocol,
+    buffer: '',
+  })
+
+  connection.setAborter(() => {
+    SSEStreamManager.abort(requestId)
+    releaseContext(requestId)
+  })
+
+  const method = normalizeMethod(options.method)
+  const timeout = options.timeout == null ? 60000 : options.timeout
+  const bodyText = normalizeBodyText(options)
+
+  setTimeout(() => {
+    const started = SSEStreamManager.connect(
+      requestId,
+      options.url,
+      method,
+      streamProtocol,
+      timeout,
+      options.headers,
+      bodyText,
+      (statusCode: number, nativeHeaderKeys: kotlin.Array<string>, nativeHeaderValues: kotlin.Array<string>) => {
+        handleOpen(
+          requestId,
+          statusCode,
+          Array.fromNative(nativeHeaderKeys),
+          Array.fromNative(nativeHeaderValues)
+        )
       },
-      (doNotAskAgain: boolean, _: UTSArray<string>) => {
-        markDenied(doNotAskAgain);
-      }
-    );
-  } catch (err) {
-    const errMsg = `${err}`;
-    if (errMsg.indexOf('targetSdkVersion') !== -1 || errMsg.indexOf('POST_NOTIFICATIONS') !== -1) {
-      console.log('[index.uts] targetSdk < 33，系统禁止申请通知权限，视为已授权');
-      onGranted();
-      return;
-    }
-    onDenied(`申请通知权限失败: ${errMsg}`);
-  }
-}
-
-// 过滤与浏览器端一致的不安全/受限头部键名
-function isForbiddenHeaderName(name: string): boolean {
-  const n = ('' + name).toLowerCase();
-  if (n.startsWith('proxy-') || n.startsWith('sec-')) return true;
-  switch (n) {
-    case 'accept-charset':
-    case 'accept-encoding':
-    case 'access-control-request-headers':
-    case 'access-control-request-method':
-    case 'connection':
-    case 'content-length':
-    case 'cookie':
-    case 'cookie2':
-    case 'date':
-    case 'dnt':
-    case 'expect':
-    case 'host':
-    case 'keep-alive':
-    case 'origin':
-    case 'referer':
-    case 'te':
-    case 'trailer':
-    case 'transfer-encoding':
-    case 'upgrade':
-    case 'via':
-      return true;
-    default:
-      return false;
-  }
-}
-
-/**
- * SSE 连接 API
- */
-export const sseConnectApi: SSEConnectApi = function (options: SSEConnectOptions) {
-  const manager = getSSEManager();
-  const requestId = options.requestId != null ? options.requestId : `sse_${Date.now()}`;
-  const fgEnabled = options.foregroundEnabled === true;
-  const wakeLockEnabled = (options.wakeLockEnabled == null) ? true : options.wakeLockEnabled === true;
-  const wifiLockEnabled = (options.wifiLockEnabled == null) ? true : options.wifiLockEnabled === true;
-  const notificationStrategy = options.notifications ?? 'auto';
-
-  const dispatchGeneralFailure = (error: any) => {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to start SSE connection';
-    const failError = createSSEError(9020001, errorMessage);
-    options.fail?.(failError);
-    options.complete?.(failError);
-  };
-
-  const runConnection = () => {
-    try {
-      if (fgEnabled) {
-        console.log(`[index.uts] 🔒 前台服务已启用 (requestId=${requestId})`);
-
-        const importance: Int = options.foregroundImportance != null ? mapImportance(options.foregroundImportance!) : 2 as Int;
-        const channelId = options.foregroundChannelId ?? 'sse_channel';
-        const channelName = options.foregroundChannelName ?? 'SSE';
-        const title = options.foregroundTitle ?? 'SSE 正在保持连接';
-        const text = options.foregroundText ?? '后台保持连接以接收消息';
-
-        SseForegroundService.configure(channelId, channelName, importance, title, text);
-
-        console.log(`[index.uts] 前台服务配置: channelId=${channelId}, importance=${importance}`);
-        console.log(`[index.uts] WakeLock: ${wakeLockEnabled}, WiFiLock: ${wifiLockEnabled}, 通知: "${title}"`);
-      } else {
-        console.log(`[index.uts] 前台服务未启用 (requestId=${requestId})`);
-      }
-
-      const finalUrl = resolveAndroidLoopback(options.url);
-      let headersJson: string | null = null;
-      try {
-        if (options.headers != null) {
-          headersJson = JSON.stringify(options.headers as any);
-        }
-      } catch (_) {
-        headersJson = null;
-      }
-
-      console.log(`[index.uts] 调用 SSEManager.startConnectionWithHeadersJson (url=${finalUrl}, fg=${fgEnabled}, wake=${wakeLockEnabled}, wifi=${wifiLockEnabled})`);
-      if (fgEnabled) {
-        manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback, fgEnabled, wakeLockEnabled, wifiLockEnabled);
-      } else {
-        manager.startConnectionWithHeadersJson(finalUrl, headersJson, requestId, sseCallback);
-      }
-      console.log('[index.uts] ✅ SSEManager 调用完成');
-
-      const result: SSEConnectResult = {
-        requestId: requestId,
-        message: 'Connection started'
-      };
-
-      options.success?.(result);
-      options.complete?.(result);
-    } catch (error) {
-      dispatchGeneralFailure(error);
-    }
-  };
-
-  if (fgEnabled && notificationStrategy !== false) {
-    console.log(`[index.uts] 检查通知权限 (strategy=${notificationStrategy})`);
-    ensureNotificationPermissionIfRequired(
-      notificationStrategy,
-      () => {
-        console.log('[index.uts] ✅ 通知权限就绪');
-        runConnection();
+      (text: string) => {
+        handleChunk(requestId, text)
       },
       (message: string) => {
-        console.log(`[index.uts] ❌ 通知权限失败: ${message}`);
-        const failError = createSSEError(9020004, `前台服务需要通知权限：${message}`);
-        options.fail?.(failError);
-        options.complete?.(failError);
+        handleError(requestId, message)
+      },
+      () => {
+        handleComplete(requestId)
       }
-    );
-  } else {
-    runConnection();
-  }
-};
+    )
 
-/**
- * SSE 关闭连接 API
- */
-export const sseCloseApi: SSECloseApi = function (requestId: string) {
-  try {
-    const manager = getSSEManager();
-    manager.cancelConnection(requestId);
-  } catch (_){
-  }
-};
-
-/**
- * SSE 添加事件监听器 API
- */
-@UTSJS.keepAlive
-export function sseAddEventListenerApi(options: SSEEventListenerOptions): void {
-  const reqId = options.requestId;
-  if (reqId != null) {
-    const list = listenersByRequestId.get(reqId);
-    if (list == null) {
-      listenersByRequestId.set(reqId, [options]);
-    } else {
-      const merged: SSEEventListenerOptions[] = [];
-      for (let i = 0; i < list.length; i++) { merged.push(list[i]); }
-      merged.push(options);
-      listenersByRequestId.set(reqId, merged);
+    if (!started) {
+      const ctx = bridgeContexts.get(requestId)
+      if (ctx != null) {
+        ctx.connection.emitError(createStreamError(9030002, 'Invalid stream URL', null))
+        ctx.connection.finishOnce()
+      }
+      releaseContext(requestId)
     }
-  } else {
-    globalListeners.push(options);
-  }
+  }, 0)
+
+  return connection
 }
 
-/**
- * SSE 移除事件监听器 API
- */
-export const sseRemoveEventListenerApi: SSERemoveEventListenerApi = function (requestId?: string) {
-  if (requestId != null) {
-    if (listenersByRequestId.has(requestId)) {
-      listenersByRequestId.delete(requestId);
-    }
-  } else {
-    globalListeners = [];
-  }
-};
-
-/**
- * 关闭所有 SSE 连接
- */
-export function closeAllSSEConnections(): void {
-  const manager = getSSEManager();
-  manager.cancelAllConnections();
-  listenersByRequestId.clear();
-  globalListeners = [];
+export { createStreamError }
+export {
+  StreamProtocol,
+  StreamErrorCode,
+  StreamFail,
+  StreamConnectOptions,
+  StreamOpenEvent,
+  StreamChunkEvent,
+  StreamMessageEvent,
+  StreamConnection,
+  ConnectStream,
 }
