@@ -26,6 +26,13 @@
           </view>
         </view>
 
+        <text class="label">消息数据解析</text>
+        <view class="tabs compact">
+          <view v-for="(item, index) in parseModeLabels" :key="item" class="tab" :class="{ active: parseModeIndex == index }" @click="pickParseMode(index)">
+            <text class="tab-text" :class="{ 'tab-text-active': parseModeIndex == index }">{{ item }}</text>
+          </view>
+        </view>
+
         <text class="label">请求体（JSON 或纯文本，可留空）</text>
         <textarea class="textarea" v-model="requestBody" auto-height placeholder='例如：{"topic":"demo"}' />
       </view>
@@ -95,11 +102,14 @@ export default {
       protocolLabels: ['SSE', 'Line', 'JSONL', 'Raw'],
       protocolValues: ['sse', 'line', 'jsonl', 'raw'],
       protocolPaths: ['/sse', '/line-stream', '/jsonl-stream', '/raw-stream'],
+      bodySamples: ['{"topic":"demo","userId":"u_001"}', '{"topic":"demo","userId":"u_001"}', '{"topic":"demo","userId":"u_001"}', 'hello stream'],
       methods: ['GET', 'POST'],
+      parseModeLabels: ['协议默认', '自动 JSON'],
       protocolIndex: 0,
       methodIndex: 0,
+      parseModeIndex: 0,
       serverUrl: `http://${host}:3000/sse`,
-      requestBody: '',
+      requestBody: '{"topic":"demo","userId":"u_001"}',
       statusText: '未连接',
       chunkCount: 0,
       messageCount: 0,
@@ -118,10 +128,31 @@ export default {
       const slashIndex = url.indexOf('/', searchStart)
       const origin = slashIndex == -1 ? url : url.slice(0, slashIndex)
       this.serverUrl = `${origin}${path}`
+      if (this.shouldReplaceRequestBody()) {
+        this.requestBody = this.defaultRequestBody(index)
+      }
       this.statusText = `已切换协议: ${value}`
     },
     pickMethod(index: number) {
       this.methodIndex = index
+      if (index == 1 && this.shouldReplaceRequestBody()) {
+        this.requestBody = this.defaultRequestBody(this.protocolIndex)
+      }
+    },
+    pickParseMode(index: number) {
+      this.parseModeIndex = index
+    },
+    defaultRequestBody(protocolIndex: number): string {
+      const sample = this.bodySamples[protocolIndex]
+      return sample != null ? sample as string : ''
+    },
+    shouldReplaceRequestBody(): boolean {
+      const current = this.requestBody.trim()
+      if (current.length == 0) return true
+      for (let i = 0; i < this.bodySamples.length; i++) {
+        if (current == this.bodySamples[i]) return true
+      }
+      return false
     },
     parseBody(): string | UTSJSONObject | null {
       const text = this.requestBody.trim()
@@ -164,13 +195,20 @@ export default {
       const url = this.serverUrl as string
       const protocol = this.protocolValues[this.protocolIndex] as StreamProtocol
       const method = this.methods[this.methodIndex] as string
+      const autoParseJson = this.parseModeIndex == 1 ? true : null
       const body = method == 'POST' ? this.parseBody() : null
+      const headers: UTSJSONObject = { 'X-Demo-Protocol': `${protocol}` }
+      if (method == 'POST' && body != null) {
+        headers['Content-Type'] = typeof body == 'string' ? 'text/plain; charset=utf-8' : 'application/json; charset=utf-8'
+      }
 
       const connection: StreamConnection = connectStream({
         url,
         method,
         protocol,
-        headers: { 'X-Demo-Protocol': `${protocol}` },
+        autoParseJson,
+        debug: true,
+        headers,
         body,
       })
       this.activeConnection = connection

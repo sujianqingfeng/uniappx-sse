@@ -24,6 +24,7 @@ const connection = connectStream({
   url: 'http://localhost:3000/sse',
   method: 'GET',
   protocol: 'sse',
+  debug: true,
   headers: {
     'X-Demo-Protocol': 'sse'
   }
@@ -71,6 +72,10 @@ connection.abort()
   超时时间，单位毫秒。App 平台默认 `60000`。
 - `protocol?: 'sse' | 'line' | 'jsonl' | 'raw' | null`
   解析协议，默认 `sse`。
+- `autoParseJson?: boolean | null`
+  是否自动把 message 文本解析为 JSON。未传时按协议默认值处理：`sse` / `line` 默认 `false`，`jsonl` 默认 `true`。
+- `debug?: boolean | null`
+  是否输出插件内部调试日志，默认 `false`。开启后会打印 `connect/open/chunk/message/error/complete/abort`，其中 `chunk` 会输出完整文本内容。
 
 返回值：
 
@@ -119,6 +124,11 @@ connection.onChunk((evt) => {
 
 仅在 `sse` / `line` / `jsonl` 下触发，`raw` 不会触发。
 
+- `sse`: `evt.data` 保持原始字符串
+- `line`: `evt.data` 保持原始字符串
+- `jsonl`: `evt.data` 优先解析为 JSON；解析失败时保留原始字符串
+- 显式传 `autoParseJson: true/false` 时，会覆盖上面的协议默认行为
+
 ```ts
 connection.onMessage((evt) => {
   console.log(evt.event)
@@ -156,7 +166,7 @@ connection.onComplete(() => {
 
 - `onChunk`: 收到原始文本片段时触发
 - `onMessage`: 收到完整 SSE message 时触发
-- `evt.data`: 如果 `data` 是 JSON 字符串，会尝试自动解析为对象
+- `evt.data`: 保持原始字符串，不自动解析 JSON
 
 ```ts
 const connection = connectStream({
@@ -192,6 +202,24 @@ const connection = connectStream({
 const connection = connectStream({
   url: 'http://localhost:3000/jsonl-stream',
   protocol: 'jsonl'
+})
+```
+
+### 覆盖默认解析行为
+
+```ts
+const connection = connectStream({
+  url: 'http://localhost:3000/sse',
+  protocol: 'sse',
+  autoParseJson: true
+})
+```
+
+```ts
+const connection = connectStream({
+  url: 'http://localhost:3000/jsonl-stream',
+  protocol: 'jsonl',
+  autoParseJson: false
 })
 ```
 
@@ -241,6 +269,18 @@ const connection = connectStream({
   body: 'hello stream'
 })
 ```
+
+### 开启调试日志
+
+```ts
+const connection = connectStream({
+  url: 'http://localhost:3000/sse',
+  protocol: 'sse',
+  debug: true
+})
+```
+
+开启后，插件会在控制台输出连接生命周期日志。`chunk` 日志会打印完整文本内容，适合排查流式拆包问题；如果响应里包含敏感信息，不建议在生产环境打开。
 
 ### 页面卸载时关闭连接
 

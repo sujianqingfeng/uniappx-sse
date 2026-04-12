@@ -12,11 +12,14 @@ import {
 import { createStreamError } from '../unierror.uts'
 import { StreamConnectionImpl } from '../internal/runtime.uts'
 import { parseBuffer } from '../internal/parser.uts'
+import { logDebug } from '../logger.uts'
 
 type StreamAndroidBridgeContext = {
   connection: StreamConnectionImpl
   streamProtocol: StreamProtocol
   buffer: string
+  autoParseJson: boolean | null
+  debug: boolean
 }
 
 const bridgeContexts: Map<string, StreamAndroidBridgeContext> = new Map()
@@ -24,7 +27,7 @@ let bridgeIndex = 0
 
 function nextRequestId(): string {
   bridgeIndex += 1
-  return `stream_${Date.now()}_${bridgeIndex}`
+  return `sse_${Date.now()}_${bridgeIndex}`
 }
 
 function normalizeProtocol(inputProtocol?: StreamProtocol | null): StreamProtocol {
@@ -35,6 +38,15 @@ function normalizeProtocol(inputProtocol?: StreamProtocol | null): StreamProtoco
 function normalizeMethod(method?: string | null): string {
   const value = `${method ?? 'GET'}`.trim().toUpperCase()
   return value.length > 0 ? value : 'GET'
+}
+
+function normalizeDebug(debug?: boolean | null): boolean {
+  return debug == true
+}
+
+function normalizeAutoParseJson(autoParseJson?: boolean | null): boolean | null {
+  if (autoParseJson == null) return null
+  return autoParseJson == true
 }
 
 function normalizeBodyText(options: StreamConnectOptions): string | null {
@@ -64,12 +76,15 @@ function handleOpen(requestId: string, statusCode: number, headerKeys: string[],
     statusCode,
     headers: buildHeadersObject(headerKeys, headerValues),
   }
+  logDebug(ctx.debug, requestId, 'open', event)
   ctx.connection.emitOpen(event)
 
   if (statusCode >= 400) {
     const data: UTSJSONObject = {}
     data['statusCode'] = statusCode
-    ctx.connection.emitError(createStreamError(9030004, `HTTP ${statusCode}`, data))
+    const err = createStreamError(9030004, `HTTP ${statusCode}`, data)
+    logDebug(ctx.debug, requestId, 'error', err)
+    ctx.connection.emitError(err)
     ctx.connection.finishOnce()
     releaseContext(requestId)
   }
@@ -80,21 +95,29 @@ function handleChunk(requestId: string, text: string): void {
   if (ctx == null) return
   if (text.length == 0) return
 
+  logDebug(ctx.debug, requestId, 'chunk', {
+    length: text.length,
+    text,
+  })
   ctx.connection.emitChunk(text)
   if (ctx.streamProtocol == 'raw') return
 
   ctx.buffer += text
-  const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, false)
+  const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, false, ctx.autoParseJson)
   ctx.buffer = parsed.rest
   for (let i = 0; i < parsed.messages.length; i++) {
-    ctx.connection.emitMessage(parsed.messages[i] as StreamMessageEvent)
+    const message = parsed.messages[i] as StreamMessageEvent
+    logDebug(ctx.debug, requestId, 'message', message)
+    ctx.connection.emitMessage(message)
   }
 }
 
 function handleError(requestId: string, message: string): void {
   const ctx = bridgeContexts.get(requestId)
   if (ctx == null) return
-  ctx.connection.emitError(createStreamError(9030003, message, null))
+  const err = createStreamError(9030003, message, null)
+  logDebug(ctx.debug, requestId, 'error', err)
+  ctx.connection.emitError(err)
   ctx.connection.finishOnce()
   releaseContext(requestId)
 }
@@ -104,46 +127,64 @@ function handleComplete(requestId: string): void {
   if (ctx == null) return
 
   if (ctx.streamProtocol != 'raw') {
-    const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, true)
+    const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, true, ctx.autoParseJson)
     ctx.buffer = parsed.rest
     for (let i = 0; i < parsed.messages.length; i++) {
-      ctx.connection.emitMessage(parsed.messages[i] as StreamMessageEvent)
+      const message = parsed.messages[i] as StreamMessageEvent
+      logDebug(ctx.debug, requestId, 'message', message)
+      ctx.connection.emitMessage(message)
     }
   }
 
+  logDebug(ctx.debug, requestId, 'complete')
   ctx.connection.finishOnce()
   releaseContext(requestId)
 }
 
 export const connectStream: ConnectStream = function (options: StreamConnectOptions): StreamConnection {
   const connection = new StreamConnectionImpl()
+  const debugEnabled = normalizeDebug(options.debug)
 
   if (options.url.length == 0) {
     setTimeout(() => {
-      connection.emitError(createStreamError(9030002, 'Invalid stream URL', null))
+      const err = createStreamError(9030002, 'Invalid stream URL', null)
+      logDebug(debugEnabled, 'pending', 'error', err)
+      connection.emitError(err)
       connection.finishOnce()
     }, 0)
     return connection
   }
 
   const streamProtocol = normalizeProtocol(options.protocol)
+  const autoParseJson = normalizeAutoParseJson(options.autoParseJson)
+  const method = normalizeMethod(options.method)
+  const timeout = options.timeout == null ? 60000 : options.timeout
+  const bodyText = normalizeBodyText(options)
   const requestId = nextRequestId()
   bridgeContexts.set(requestId, {
     connection,
     streamProtocol,
     buffer: '',
+    autoParseJson,
+    debug: debugEnabled,
   })
 
   connection.setAborter(() => {
+    logDebug(debugEnabled, requestId, 'abort')
     SSEStreamManager.abort(requestId)
     releaseContext(requestId)
   })
 
-  const method = normalizeMethod(options.method)
-  const timeout = options.timeout == null ? 60000 : options.timeout
-  const bodyText = normalizeBodyText(options)
-
   setTimeout(() => {
+    logDebug(debugEnabled, requestId, 'connect', {
+      url: options.url,
+      method,
+      protocol: streamProtocol,
+      timeout,
+      autoParseJson,
+      hasHeaders: options.headers != null,
+      hasBody: bodyText != null,
+    })
     const started = SSEStreamManager.connect(
       requestId,
       options.url,
@@ -174,7 +215,9 @@ export const connectStream: ConnectStream = function (options: StreamConnectOpti
     if (!started) {
       const ctx = bridgeContexts.get(requestId)
       if (ctx != null) {
-        ctx.connection.emitError(createStreamError(9030002, 'Invalid stream URL', null))
+        const err = createStreamError(9030002, 'Invalid stream URL', null)
+        logDebug(debugEnabled, requestId, 'error', err)
+        ctx.connection.emitError(err)
         ctx.connection.finishOnce()
       }
       releaseContext(requestId)
@@ -195,4 +238,4 @@ export {
   StreamMessageEvent,
   StreamConnection,
   ConnectStream,
-}
+} from '../interface.uts'

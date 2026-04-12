@@ -17,6 +17,8 @@ export type StreamConnectOptions = {
   body?: UTSJSONObject | string | null
   timeout?: number | null
   protocol?: StreamProtocol | null
+  autoParseJson?: boolean | null
+  debug?: boolean | null
 }
 
 export type StreamOpenEvent = {
@@ -53,4 +55,3 @@ export type ConnectStream = (options: StreamConnectOptions) => StreamConnection
 
 export declare const connectStream: ConnectStream
 export declare const createStreamError: (code: StreamErrorCode, message?: string, data?: UTSJSONObject | null) => StreamFail
-

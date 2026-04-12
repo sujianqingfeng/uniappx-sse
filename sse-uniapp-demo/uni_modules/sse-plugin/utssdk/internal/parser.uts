@@ -5,18 +5,29 @@ export type ParserResult = {
   rest: string
 }
 
+function resolveAutoParseJson(streamProtocol: StreamProtocol, autoParseJson?: boolean | null): boolean {
+  if (autoParseJson != null) return autoParseJson == true
+  return streamProtocol == 'jsonl'
+}
+
 function parseDataText(dataText: string): any {
-  if (dataText.length == 0) return ''
+  const text = dataText.trim()
+  if (text.length == 0) return ''
+  const looksLikeJsonObject = text.startsWith('{') && text.endsWith('}')
+  const looksLikeJsonArray = text.startsWith('[') && text.endsWith(']')
+  if (!looksLikeJsonObject && !looksLikeJsonArray) {
+    return dataText
+  }
   try {
-    const parsedAny: any | null = JSON.parse(dataText)
+    const parsedAny: any | null = JSON.parse(text)
     if (parsedAny != null) return parsedAny
   } catch (_) {}
   return dataText
 }
 
-function makeMessage(rawText: string, event: string | null, id: string | null): StreamMessageEvent {
+function makeMessage(rawText: string, event: string | null, id: string | null, data: any): StreamMessageEvent {
   const msg: StreamMessageEvent = {
-    data: parseDataText(rawText),
+    data,
     rawText,
   }
   if (event != null && event.length > 0) msg.event = event
@@ -28,7 +39,7 @@ export function parseRawChunk(text: string): StreamMessageEvent[] {
   return []
 }
 
-export function parseLineBuffer(buffer: string, final: boolean): ParserResult {
+export function parseLineBuffer(buffer: string, final: boolean, autoParseJson: boolean = false): ParserResult {
   const messages: StreamMessageEvent[] = []
   let rest = buffer
   while (true) {
@@ -37,22 +48,22 @@ export function parseLineBuffer(buffer: string, final: boolean): ParserResult {
     let line = rest.slice(0, idx)
     if (line.endsWith('\r')) line = line.slice(0, -1)
     rest = rest.slice(idx + 1)
-    messages.push(makeMessage(line, null, null))
+    messages.push(makeMessage(line, null, null, autoParseJson ? parseDataText(line) : line))
   }
   if (final && rest.length > 0) {
     let line = rest
     if (line.endsWith('\r')) line = line.slice(0, -1)
-    messages.push(makeMessage(line, null, null))
+    messages.push(makeMessage(line, null, null, autoParseJson ? parseDataText(line) : line))
     rest = ''
   }
   return { messages, rest }
 }
 
-export function parseJsonlBuffer(buffer: string, final: boolean): ParserResult {
-  return parseLineBuffer(buffer, final)
+export function parseJsonlBuffer(buffer: string, final: boolean, autoParseJson: boolean = true): ParserResult {
+  return parseLineBuffer(buffer, final, autoParseJson)
 }
 
-export function parseSseBuffer(buffer: string, final: boolean): ParserResult {
+export function parseSseBuffer(buffer: string, final: boolean, autoParseJson: boolean = false): ParserResult {
   const messages: StreamMessageEvent[] = []
   let rest = buffer
 
@@ -72,12 +83,12 @@ export function parseSseBuffer(buffer: string, final: boolean): ParserResult {
     } else {
       rest = rest.slice(idx + 2)
     }
-    const msg = parseSseBlock(block)
+    const msg = parseSseBlock(block, autoParseJson)
     if (msg != null) messages.push(msg)
   }
 
   if (final && rest.length > 0) {
-    const msg = parseSseBlock(rest)
+    const msg = parseSseBlock(rest, autoParseJson)
     if (msg != null) messages.push(msg)
     rest = ''
   }
@@ -85,7 +96,7 @@ export function parseSseBuffer(buffer: string, final: boolean): ParserResult {
   return { messages, rest }
 }
 
-function parseSseBlock(block: string): StreamMessageEvent | null {
+function parseSseBlock(block: string, autoParseJson: boolean): StreamMessageEvent | null {
   const lines = block.split('\n')
   let event: string | null = null
   let id: string | null = null
@@ -111,17 +122,18 @@ function parseSseBlock(block: string): StreamMessageEvent | null {
     return null
   }
   const rawText = dataLines.join('\n')
-  return makeMessage(rawText, event, id)
+  return makeMessage(rawText, event, id, autoParseJson ? parseDataText(rawText) : rawText)
 }
 
-export function parseBuffer(streamProtocol: StreamProtocol, buffer: string, final: boolean): ParserResult {
+export function parseBuffer(streamProtocol: StreamProtocol, buffer: string, final: boolean, autoParseJson?: boolean | null): ParserResult {
+  const shouldAutoParseJson = resolveAutoParseJson(streamProtocol, autoParseJson)
   switch (streamProtocol) {
     case 'line':
-      return parseLineBuffer(buffer, final)
+      return parseLineBuffer(buffer, final, shouldAutoParseJson)
     case 'jsonl':
-      return parseJsonlBuffer(buffer, final)
+      return parseJsonlBuffer(buffer, final, shouldAutoParseJson)
     case 'sse':
-      return parseSseBuffer(buffer, final)
+      return parseSseBuffer(buffer, final, shouldAutoParseJson)
     case 'raw':
     default:
       return { messages: parseRawChunk(buffer), rest: final ? '' : buffer }

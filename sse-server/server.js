@@ -11,117 +11,197 @@ const log = (...args) => {
   console.log(`[${timestamp}]`, ...args)
 }
 
+const readRequestBody = (req) => {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    req.setEncoding('utf8')
+    req.on('data', (chunk) => {
+      body += chunk
+    })
+    req.on('end', () => {
+      resolve(body)
+    })
+    req.on('error', (err) => {
+      reject(err)
+    })
+  })
+}
+
+const parseRequestBody = (bodyText, contentType) => {
+  const text = bodyText.trim()
+  if (text.length == 0) return null
+
+  const shouldTryJson = contentType.includes('application/json') || contentType.includes('+json') || text.startsWith('{') || text.startsWith('[')
+  if (shouldTryJson) {
+    try {
+      return JSON.parse(text)
+    } catch (_) {
+    }
+  }
+  return bodyText
+}
+
+const createRequestInfo = (req, bodyText = '') => {
+  const contentType = `${req.headers['content-type'] || ''}`
+  return {
+    method: req.method,
+    contentType,
+    bodyText,
+    body: parseRequestBody(bodyText, contentType)
+  }
+}
+
+const createRequestPreview = (requestInfo) => {
+  if (requestInfo.body == null) return '(empty)'
+  const text = typeof requestInfo.body == 'string' ? requestInfo.body : (JSON.stringify(requestInfo.body) || '')
+  const compact = text.replace(/\r/g, '\\r').replace(/\n/g, '\\n')
+  return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact
+}
+
+const logRequestInfo = (route, req, requestInfo) => {
+  const authHeader = req.headers.authorization
+  const userAgent = req.headers['user-agent']
+  log(`${route} ${req.method} headers - Auth: ${authHeader}, User-Agent: ${userAgent}, Content-Type: ${requestInfo.contentType || '(empty)'}`)
+  if (requestInfo.body != null) {
+    log(`${route} ${req.method} body:`, requestInfo.body)
+  } else {
+    log(`${route} ${req.method} body: (empty)`)
+  }
+}
+
+const setStreamHeaders = (res, contentType) => {
+  res.setHeader('Content-Type', contentType)
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+}
+
+const createStreamRequestEvent = (clientId, requestInfo) => {
+  return {
+    clientId,
+    method: requestInfo.method,
+    contentType: requestInfo.contentType || null,
+    body: requestInfo.body,
+    timestamp: new Date().toISOString()
+  }
+}
+
+const registerStreamRoute = (path, handler) => {
+  app.get(path, (req, res) => {
+    handler(req, res, createRequestInfo(req))
+  })
+
+  app.post(path, async (req, res) => {
+    try {
+      const bodyText = await readRequestBody(req)
+      handler(req, res, createRequestInfo(req, bodyText))
+    } catch (err) {
+      log(`${path} POST read body failed:`, err)
+      res.status(400).json({
+        error: 'Failed to read request body',
+        message: err instanceof Error ? err.message : String(err)
+      })
+    }
+  })
+}
+
 // Enable CORS for all routes
 app.use(cors());
 
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// SSE endpoint
-app.get('/sse', (req, res) => {
-  // Set headers for SSE
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  
-  // Set a unique ID for this connection
-  const clientId = Date.now();
-  log(`New SSE connection: ${clientId}`);
-  
-  // Check for custom headers
-  const authHeader = req.headers.authorization;
-  const userAgent = req.headers['user-agent'];
-  log(`Client connected with headers - Auth: ${authHeader}, User-Agent: ${userAgent}`);
-  
-  // Send a welcome message
-  res.write(`data: Welcome to the SSE server! Your connection ID is ${clientId}\n\n`);
-  
-  // Function to send events
+const handleSseStream = (req, res, requestInfo) => {
+  setStreamHeaders(res, 'text/event-stream')
+
+  const clientId = Date.now()
+  log(`New SSE connection: ${clientId}`)
+  logRequestInfo('/sse', req, requestInfo)
+
+  res.write(`data: Welcome to the SSE server! Your connection ID is ${clientId}\n\n`)
+
   const sendEvent = (data, event = null, id = null) => {
-    let eventData = '';
-    if (id) eventData += `id: ${id}\n`;
-    if (event) eventData += `event: ${event}\n`;
-    eventData += `data: ${JSON.stringify(data)}\n\n`;
-    res.write(eventData);
-  };
-  
-  // Send different types of test data
-  let counter = 1;
+    let eventData = ''
+    if (id) eventData += `id: ${id}\n`
+    if (event) eventData += `event: ${event}\n`
+    eventData += `data: ${JSON.stringify(data)}\n\n`
+    res.write(eventData)
+  }
+
+  sendEvent(createStreamRequestEvent(clientId, requestInfo), 'request')
+
+  let counter = 1
   const interval = setInterval(() => {
-    // Randomly send different types of events
-    const eventType = Math.floor(Math.random() * 4);
-    
+    const eventType = Math.floor(Math.random() * 4)
+
     switch (eventType) {
-      case 0:
-        // Regular message
+      case 0: {
         const message = {
           timestamp: new Date().toISOString(),
           message: `Server time is ${new Date().toLocaleTimeString()}`,
-          clientId: clientId
-        };
-        sendEvent(message, 'message');
-        break;
-        
-      case 1:
-        // Notification event
+          clientId
+        }
+        sendEvent(message, 'message')
+        break
+      }
+
+      case 1: {
         const notification = {
           id: counter++,
-          title: "New Notification",
-          body: "This is a test notification from the server",
+          title: 'New Notification',
+          body: 'This is a test notification from the server',
           timestamp: new Date().toISOString()
-        };
-        sendEvent(notification, 'notification');
-        break;
-        
-      case 2:
-        // Status update event
+        }
+        sendEvent(notification, 'notification')
+        break
+      }
+
+      case 2: {
         const status = {
           id: counter++,
-          user: "user" + Math.floor(Math.random() * 100),
-          status: ["online", "offline", "away"][Math.floor(Math.random() * 3)],
+          user: `user${Math.floor(Math.random() * 100)}`,
+          status: ['online', 'offline', 'away'][Math.floor(Math.random() * 3)],
           timestamp: new Date().toISOString()
-        };
-        sendEvent(status, 'status');
-        break;
-        
-      case 3:
-        // Data update event
+        }
+        sendEvent(status, 'status')
+        break
+      }
+
+      default: {
         const dataUpdate = {
           id: counter++,
-          type: "data_update",
+          type: 'data_update',
           value: Math.random() * 100,
-          unit: ["kb", "mb", "gb"][Math.floor(Math.random() * 3)],
+          unit: ['kb', 'mb', 'gb'][Math.floor(Math.random() * 3)],
           timestamp: new Date().toISOString()
-        };
-        sendEvent(dataUpdate, 'data');
-        break;
+        }
+        sendEvent(dataUpdate, 'data')
+        break
+      }
     }
-  }, 3000);
-  
-  // Handle client disconnect
-  req.on('close', () => {
-    log(`SSE connection closed: ${clientId}`);
-    clearInterval(interval);
-  });
-  
-  // Handle errors
-  req.on('error', (err) => {
-    console.error(`[${new Date().toISOString()}] SSE connection error for ${clientId}:`, err);
-    clearInterval(interval);
-  });
-});
+  }, 3000)
 
-app.get('/line-stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  req.on('close', () => {
+    log(`SSE connection closed: ${clientId}`)
+    clearInterval(interval)
+  })
+
+  req.on('error', (err) => {
+    console.error(`[${new Date().toISOString()}] SSE connection error for ${clientId}:`, err)
+    clearInterval(interval)
+  })
+}
+
+const handleLineStream = (req, res, requestInfo) => {
+  setStreamHeaders(res, 'text/plain; charset=utf-8')
 
   const clientId = Date.now()
   log(`New line stream connection: ${clientId}`)
+  logRequestInfo('/line-stream', req, requestInfo)
 
   res.write(`hello line stream ${clientId}\n`)
+  res.write(`request ${requestInfo.method} body=${createRequestPreview(requestInfo)}\n`)
+
   let counter = 1
   const interval = setInterval(() => {
     res.write(`line ${counter} @ ${new Date().toISOString()}\n`)
@@ -132,16 +212,16 @@ app.get('/line-stream', (req, res) => {
     clearInterval(interval)
     log(`Line stream closed: ${clientId}`)
   })
-})
+}
 
-app.get('/jsonl-stream', (req, res) => {
-  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('Access-Control-Allow-Origin', '*')
+const handleJsonlStream = (req, res, requestInfo) => {
+  setStreamHeaders(res, 'application/x-ndjson; charset=utf-8')
 
   const clientId = Date.now()
   log(`New JSONL stream connection: ${clientId}`)
+  logRequestInfo('/jsonl-stream', req, requestInfo)
+
+  res.write(`${JSON.stringify({ type: 'request', ...createStreamRequestEvent(clientId, requestInfo) })}\n`)
 
   let counter = 1
   const send = () => {
@@ -161,16 +241,16 @@ app.get('/jsonl-stream', (req, res) => {
     clearInterval(interval)
     log(`JSONL stream closed: ${clientId}`)
   })
-})
+}
 
-app.get('/raw-stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('Access-Control-Allow-Origin', '*')
+const handleRawStream = (req, res, requestInfo) => {
+  setStreamHeaders(res, 'text/plain; charset=utf-8')
 
   const clientId = Date.now()
   log(`New raw stream connection: ${clientId}`)
+  logRequestInfo('/raw-stream', req, requestInfo)
+
+  res.write(`request|${requestInfo.method}|${createRequestPreview(requestInfo)}|`)
 
   let counter = 1
   const interval = setInterval(() => {
@@ -182,7 +262,12 @@ app.get('/raw-stream', (req, res) => {
     clearInterval(interval)
     log(`Raw stream closed: ${clientId}`)
   })
-})
+}
+
+registerStreamRoute('/sse', handleSseStream)
+registerStreamRoute('/line-stream', handleLineStream)
+registerStreamRoute('/jsonl-stream', handleJsonlStream)
+registerStreamRoute('/raw-stream', handleRawStream)
 
 // Health check endpoint
 app.get('/health', (req, res) => {
