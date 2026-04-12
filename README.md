@@ -3,7 +3,7 @@
 跨平台 Server-Sent Events (SSE) 原生能力插件，支持 uni-app X 与 uni-app（Web/Android/iOS）。提供统一 UTS 接口、多连接管理、事件监听、自定义请求头（自动过滤受限头），并内置 Android 模拟器环回地址适配。
 
 支持的示例与子工程：
-- `sse-uniapp-demo`: uni-app X 示例（uvue/uts）
+- `uniappx-sse-playground`: uni-app X 示例（uvue/uts）
 - `sse-uniapp-v3-demo`: uni-app（Vue3）示例
 - `sse-android`: Android 原生库（AAR）与示例
 - `sse-ios-framework`: iOS 原生 Framework
@@ -26,7 +26,7 @@
 
 ```
 uniapp-navtive-plugin-sse/
-  sse-uniapp-demo/            # uni-app X 示例（含 uni_modules/sse-plugin 插件）
+  uniappx-sse-playground/     # uni-app X 示例（含 uni_modules/sse-plugin 插件）
   sse-uniapp-v3-demo/         # uni-app（Vue3）示例（同一套插件）
   sse-android/                # Android 原生库与构建脚本（AAR）
   sse-ios-framework/          # iOS 原生 Framework 与构建脚本
@@ -50,7 +50,7 @@ pnpm dev
 
 2) 运行示例应用
 
-- uni-app X 示例：使用 HBuilderX 打开 `sse-uniapp-demo`，选择运行到 App-Android、App-iOS 或 Web。
+- uni-app X 示例：使用 HBuilderX 打开 `uniappx-sse-playground`，选择运行到 App-Android、App-iOS 或 Web。
 - uni-app（Vue3）示例：使用 HBuilderX 打开 `sse-uniapp-v3-demo`，同上。
 
 提示（Android 模拟器）：请使用 `http://10.0.2.2:3000/sse` 访问宿主机服务；插件与示例已内置自动映射。
@@ -159,10 +159,10 @@ cd sse-android
 输出位置：`sse-android/sse-lib/build/outputs/aar/`
 
 脚本会自动将 AAR 复制到示例插件目录：
-`sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-android/libs/`
+`uniappx-sse-playground/uni_modules/sse-plugin/utssdk/app-android/libs/`
 
 网络安全提示：示例已提供 `network_security_config.xml` 放行本地开发域名/IP：
-`sse-uniapp-demo/nativeResources/android/res/xml/network_security_config.xml`
+`uniappx-sse-playground/nativeResources/android/res/xml/network_security_config.xml`
 
 
 ### iOS Framework 构建
@@ -180,7 +180,7 @@ cd sse-ios-framework
 ```
 
 脚本会将生成的 Framework 自动复制到：
-- 插件目录：`sse-uniapp-demo/uni_modules/sse-plugin/utssdk/app-ios/Frameworks/`
+- 插件目录：`uniappx-sse-playground/uni_modules/sse-plugin/utssdk/app-ios/Frameworks/`
 - iOS Playground：`sse-ios-demo/SSEDemo/`
 
 ATS 提示：如需使用明文 HTTP 测试，请在 App 的 `Info.plist` 中配置 `NSAppTransportSecurity` 例外。
@@ -212,10 +212,9 @@ ATS 提示：如需使用明文 HTTP 测试，请在 App 的 `Info.plist` 中配
   - 为开发期间测试，可在 `Info.plist` 配置 ATS 例外，或改用 HTTPS。
 
 - 如何在自己的项目中使用该插件？
-  - 将 `sse-uniapp-demo/uni_modules/sse-plugin` 复制到你的项目 `uni_modules/` 下，即可通过上述 API 使用。
+  - 将 `uniappx-sse-playground/uni_modules/sse-plugin` 复制到你的项目 `uni_modules/` 下，即可通过上述 API 使用。
 
 
 ### 贡献
 
-欢迎提交 Issue 与 PR。开发时可分别在 `sse-android`、`sse-ios-framework` 构建产物，并在 `sse-uniapp-demo` 或 `sse-uniapp-v3-demo` 中联调。
-
+欢迎提交 Issue 与 PR。开发时可分别在 `sse-android`、`sse-ios-framework` 构建产物，并在 `uniappx-sse-playground` 或 `sse-uniapp-v3-demo` 中联调。

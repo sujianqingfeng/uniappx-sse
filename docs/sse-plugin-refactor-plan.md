@@ -2,7 +2,7 @@
 
 ## 背景
 
-当前 `sse-uniapp-demo/uni_modules/sse-plugin` 的实现以“标准 SSE 客户端”为中心设计：
+当前 `uniappx-sse-playground/uni_modules/sse-plugin` 的实现以“标准 SSE 客户端”为中心设计：
 
 - 对外 API 固定为 `sseConnectApi`、`sseCloseApi`、`sseAddEventListenerApi`
 - 事件模型固定为 `open/message/error/close`
