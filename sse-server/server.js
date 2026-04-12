@@ -86,6 +86,26 @@ const createStreamRequestEvent = (clientId, requestInfo) => {
   }
 }
 
+const attachStreamLifecycle = (res, interval, onClose, onError) => {
+  let finished = false
+  const cleanup = () => {
+    if (finished) return false
+    finished = true
+    clearInterval(interval)
+    return true
+  }
+
+  res.on('close', () => {
+    if (!cleanup()) return
+    onClose()
+  })
+
+  res.on('error', (err) => {
+    if (!cleanup()) return
+    onError(err)
+  })
+}
+
 const registerStreamRoute = (path, handler) => {
   app.get(path, (req, res) => {
     handler(req, res, createRequestInfo(req))
@@ -181,15 +201,16 @@ const handleSseStream = (req, res, requestInfo) => {
     }
   }, 3000)
 
-  req.on('close', () => {
-    log(`SSE connection closed: ${clientId}`)
-    clearInterval(interval)
-  })
-
-  req.on('error', (err) => {
-    console.error(`[${new Date().toISOString()}] SSE connection error for ${clientId}:`, err)
-    clearInterval(interval)
-  })
+  attachStreamLifecycle(
+    res,
+    interval,
+    () => {
+      log(`SSE connection closed: ${clientId}`)
+    },
+    (err) => {
+      console.error(`[${new Date().toISOString()}] SSE connection error for ${clientId}:`, err)
+    }
+  )
 }
 
 const handleLineStream = (req, res, requestInfo) => {
@@ -208,10 +229,16 @@ const handleLineStream = (req, res, requestInfo) => {
     counter += 1
   }, 2000)
 
-  req.on('close', () => {
-    clearInterval(interval)
-    log(`Line stream closed: ${clientId}`)
-  })
+  attachStreamLifecycle(
+    res,
+    interval,
+    () => {
+      log(`Line stream closed: ${clientId}`)
+    },
+    (err) => {
+      console.error(`[${new Date().toISOString()}] Line stream error for ${clientId}:`, err)
+    }
+  )
 }
 
 const handleJsonlStream = (req, res, requestInfo) => {
@@ -237,10 +264,16 @@ const handleJsonlStream = (req, res, requestInfo) => {
 
   send()
   const interval = setInterval(send, 2000)
-  req.on('close', () => {
-    clearInterval(interval)
-    log(`JSONL stream closed: ${clientId}`)
-  })
+  attachStreamLifecycle(
+    res,
+    interval,
+    () => {
+      log(`JSONL stream closed: ${clientId}`)
+    },
+    (err) => {
+      console.error(`[${new Date().toISOString()}] JSONL stream error for ${clientId}:`, err)
+    }
+  )
 }
 
 const handleRawStream = (req, res, requestInfo) => {
@@ -258,10 +291,16 @@ const handleRawStream = (req, res, requestInfo) => {
     counter += 1
   }, 1500)
 
-  req.on('close', () => {
-    clearInterval(interval)
-    log(`Raw stream closed: ${clientId}`)
-  })
+  attachStreamLifecycle(
+    res,
+    interval,
+    () => {
+      log(`Raw stream closed: ${clientId}`)
+    },
+    (err) => {
+      console.error(`[${new Date().toISOString()}] Raw stream error for ${clientId}:`, err)
+    }
+  )
 }
 
 registerStreamRoute('/sse', handleSseStream)

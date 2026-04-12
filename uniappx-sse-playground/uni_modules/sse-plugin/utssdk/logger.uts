@@ -1,6 +1,8 @@
+import { StreamData } from './interface.uts'
+
 const LOG_TAG = '[sse-plugin]'
 
-export function logDebug(enabled: boolean, requestId: string, stage: string, data: any | null = null): void {
+export function logDebug(enabled: boolean, requestId: string, stage: string, data: StreamData | ESObject | null = null): void {
   if (!enabled) return
   const prefix = `${LOG_TAG} [${requestId}] ${stage}`
   if (data != null) {

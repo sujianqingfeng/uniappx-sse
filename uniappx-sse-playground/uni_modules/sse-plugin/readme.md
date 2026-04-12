@@ -2,6 +2,13 @@
 
 用于 uni-app x / uni-app 的文本流式 HTTP 客户端插件。
 
+当前支持平台：
+
+- Web
+- App Android
+- App iOS
+- App Harmony
+
 适用场景：
 
 - 标准 SSE
@@ -102,6 +109,13 @@ type StreamConnection = {
 收到响应头后触发一次。
 
 如果服务端返回 `4xx` / `5xx`，也会先触发 `onOpen`，随后再触发 `onError` 和 `onComplete`。
+
+Harmony 平台说明：
+
+- Harmony 端基于 `@ohos.net.http.requestInStream`
+- 鸿蒙响应头事件不一定能在流刚建立时拿到最终状态码
+- 因此 `evt.statusCode` 在 Harmony 上可能为 `NaN`
+- 最终 HTTP 错误仍会通过 `onError` 和 `onComplete` 上报
 
 ```ts
 connection.onOpen((evt) => {

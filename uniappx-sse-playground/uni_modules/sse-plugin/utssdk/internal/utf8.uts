@@ -6,10 +6,10 @@ export class Utf8StreamDecoder {
   private pending: Uint8Array | null = null
 
   decode(chunk: ArrayBuffer): string {
-    let input = new Uint8Array(chunk)
+    let input: Uint8Array = new Uint8Array(chunk)
     if (this.pending != null && this.pending!.length > 0) {
-      const pendingLen = Number.from(this.pending!.length)
-      const inputLen = Number.from(input.length)
+      const pendingLen: number = this.pending!.length
+      const inputLen: number = input.length
       const merged = new Uint8Array(pendingLen + inputLen)
       for (let k = 0; k < pendingLen; k++) merged[k] = this.pending![k]
       for (let k = 0; k < inputLen; k++) merged[pendingLen + k] = input[k]
@@ -19,7 +19,7 @@ export class Utf8StreamDecoder {
 
     const out: string[] = []
     let i: number = 0
-    const inputLen = Number.from(input.length)
+    const inputLen: number = input.length
 
     while (i < inputLen) {
       const b0 = input[i]
@@ -99,4 +99,3 @@ export class Utf8StreamDecoder {
     return out.join('')
   }
 }
-

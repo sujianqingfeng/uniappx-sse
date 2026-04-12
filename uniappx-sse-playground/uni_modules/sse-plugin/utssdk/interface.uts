@@ -30,10 +30,12 @@ export type StreamChunkEvent = {
   text: string
 }
 
+export type StreamData = ESObject | string | number | boolean | null
+
 export type StreamMessageEvent = {
   event?: string
   id?: string
-  data: any
+  data: StreamData
   rawText: string
 }
 

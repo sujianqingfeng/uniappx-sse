@@ -89,14 +89,33 @@ type LogItem = {
   text: string
 }
 
+const harmonySimulatorHost = '192.168.123.56'
+
+function resolveDefaultHost(): string {
+  // #ifdef APP-ANDROID
+  return '10.0.2.2'
+  // #endif
+  // #ifdef APP-HARMONY
+  return harmonySimulatorHost
+  // #endif
+  return 'localhost'
+}
+
+function normalizeRuntimeUrl(url: string): string {
+  // #ifdef APP-HARMONY
+  if (url.indexOf('://localhost') != -1) {
+    return url.replace('://localhost', `://${harmonySimulatorHost}`)
+  }
+  if (url.indexOf('://127.0.0.1') != -1) {
+    return url.replace('://127.0.0.1', `://${harmonySimulatorHost}`)
+  }
+  // #endif
+  return url
+}
+
 export default {
   data() {
-    // #ifdef APP-ANDROID
-    const host = '10.0.2.2'
-    // #endif
-    // #ifndef APP-ANDROID
-    const host = 'localhost'
-    // #endif
+    const host = resolveDefaultHost()
 
     return {
       protocolLabels: ['SSE', 'Line', 'JSONL', 'Raw'],
@@ -192,12 +211,19 @@ export default {
       this.chunkCount = 0
       this.messageCount = 0
 
-      const url = this.serverUrl as string
+      const inputUrl = this.serverUrl as string
+      const url = normalizeRuntimeUrl(inputUrl)
       const protocol = this.protocolValues[this.protocolIndex] as StreamProtocol
       const method = this.methods[this.methodIndex] as string
       const autoParseJson = this.parseModeIndex == 1 ? true : null
       const body = method == 'POST' ? this.parseBody() : null
       const headers: UTSJSONObject = { 'X-Demo-Protocol': `${protocol}` }
+
+      if (url != inputUrl) {
+        this.serverUrl = url
+        this.pushLog('config', `Harmony simulator remapped localhost to ${harmonySimulatorHost}`)
+      }
+
       if (method == 'POST' && body != null) {
         headers['Content-Type'] = typeof body == 'string' ? 'text/plain; charset=utf-8' : 'application/json; charset=utf-8'
       }
@@ -215,7 +241,7 @@ export default {
       this.statusText = `连接中: ${protocol}`
 
       connection.onOpen((evt) => {
-        this.statusText = `已连接 HTTP ${evt.statusCode}`
+        this.statusText = evt.statusCode > 0 ? `已连接 HTTP ${evt.statusCode}` : '已连接'
         this.pushLog('open', JSON.stringify(evt.headers) ?? 'open')
       })
       connection.onChunk((evt) => {
