@@ -104,11 +104,56 @@
 </template>
 
 <script>
-import { connectStream } from '@/uni_modules/sse-plugin'
+import { connectStream } from '@/uni_modules/hens-sse'
+
+const harmonySimulatorHost = '192.168.123.56'
+
+function resolveDefaultHost() {
+  // #ifdef APP-ANDROID
+  return '10.0.2.2'
+  // #endif
+  // #ifdef APP-HARMONY
+  return harmonySimulatorHost
+  // #endif
+  return 'localhost'
+}
+
+function normalizeRuntimeUrl(url) {
+  let resolved = url || ''
+  // #ifdef APP-ANDROID
+  const androidPatterns = [
+    '://localhost',
+    '://127.0.0.1',
+    '://[::1]'
+  ]
+
+  for (let i = 0; i < androidPatterns.length; i += 1) {
+    const pattern = androidPatterns[i]
+    if (resolved.indexOf(pattern) !== -1) {
+      resolved = resolved.replace(pattern, '://10.0.2.2')
+    }
+  }
+  // #endif
+  // #ifdef APP-HARMONY
+  const harmonyPatterns = [
+    '://localhost',
+    '://127.0.0.1',
+    '://[::1]'
+  ]
+
+  for (let i = 0; i < harmonyPatterns.length; i += 1) {
+    const pattern = harmonyPatterns[i]
+    if (resolved.indexOf(pattern) !== -1) {
+      resolved = resolved.replace(pattern, `://${harmonySimulatorHost}`)
+    }
+  }
+  // #endif
+  return resolved
+}
 
 export default {
   data() {
-    const host = '10.0.2.2'
+    const host = resolveDefaultHost()
 
     return {
       protocolLabels: ['SSE', 'Line', 'JSONL', 'Raw'],
@@ -161,23 +206,6 @@ export default {
     },
     pickParseMode(index) {
       this.parseModeIndex = index
-    },
-    normalizeUrlForAndroid(url) {
-      let resolved = url || ''
-      const patterns = [
-        '://localhost',
-        '://127.0.0.1',
-        '://[::1]'
-      ]
-
-      for (let i = 0; i < patterns.length; i += 1) {
-        const pattern = patterns[i]
-        if (resolved.indexOf(pattern) !== -1) {
-          resolved = resolved.replace(pattern, '://10.0.2.2')
-        }
-      }
-
-      return resolved
     },
     defaultRequestBody(protocolIndex) {
       const sample = this.bodySamples[protocolIndex]
@@ -242,15 +270,17 @@ export default {
       this.chunkCount = 0
       this.messageCount = 0
 
-      const url = this.normalizeUrlForAndroid(this.serverUrl)
+      const inputUrl = this.serverUrl
+      const url = normalizeRuntimeUrl(inputUrl)
       const protocol = this.protocolValues[this.protocolIndex]
       const method = this.methods[this.methodIndex]
       const autoParseJson = this.parseModeIndex === 1 ? true : null
       const body = method === 'POST' ? this.parseBody() : null
       const headers = { 'X-Demo-Protocol': `${protocol}` }
 
-      if (url !== this.serverUrl) {
+      if (url !== inputUrl) {
         this.serverUrl = url
+        this.pushLog('config', `runtime remapped localhost to ${url}`)
       }
 
       if (method === 'POST' && body != null) {
@@ -273,7 +303,7 @@ export default {
       this.statusText = `连接中: ${protocol}`
 
       connection.onOpen((evt) => {
-        this.statusText = `已连接 HTTP ${evt.statusCode}`
+        this.statusText = evt.statusCode > 0 ? `已连接 HTTP ${evt.statusCode}` : '已连接'
         this.pushLog('open', this.stringifySafe(evt.headers, 'open'))
       })
 

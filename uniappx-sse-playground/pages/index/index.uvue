@@ -81,7 +81,7 @@
 </template>
 
 <script>
-import { connectStream, StreamConnection, StreamProtocol } from '@/uni_modules/sse-plugin'
+import { connectStream, StreamConnection, StreamProtocol } from '@/uni_modules/hens-sse'
 
 type LogItem = {
   time: string

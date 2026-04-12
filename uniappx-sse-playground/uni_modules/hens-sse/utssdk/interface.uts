@@ -1,0 +1,61 @@
+/**
+ * Text stream client public API.
+ */
+
+export type StreamProtocol = 'sse' | 'line' | 'jsonl' | 'raw'
+
+export type StreamErrorCode = 9030001 | 9030002 | 9030003 | 9030004 | 9030005 | 9030006 | 9030007
+
+export interface StreamFail extends IUniError {
+  errCode: StreamErrorCode
+}
+
+export type StreamConnectOptions = {
+  url: string
+  method?: string | null
+  headers?: UTSJSONObject | null
+  body?: UTSJSONObject | string | null
+  timeout?: number | null
+  protocol?: StreamProtocol | null
+  autoParseJson?: boolean | null
+  debug?: boolean | null
+}
+
+export type StreamOpenEvent = {
+  statusCode: number
+  headers: UTSJSONObject
+}
+
+export type StreamChunkEvent = {
+  text: string
+}
+
+export type StreamJsonArray = Array<UTSJSONObject | string | number | boolean | null>
+
+export type StreamData = UTSJSONObject | StreamJsonArray | string | number | boolean | null
+
+export type StreamMessageEvent = {
+  event?: string
+  id?: string
+  data: StreamData
+  rawText: string
+}
+
+export interface StreamConnection {
+  abort(): void
+  onOpen(callback: ((evt: StreamOpenEvent) => void) | null): void
+  offOpen(): void
+  onChunk(callback: ((evt: StreamChunkEvent) => void) | null): void
+  offChunk(): void
+  onMessage(callback: ((evt: StreamMessageEvent) => void) | null): void
+  offMessage(): void
+  onError(callback: ((err: StreamFail) => void) | null): void
+  offError(): void
+  onComplete(callback: (() => void) | null): void
+  offComplete(): void
+}
+
+export type ConnectStream = (options: StreamConnectOptions) => StreamConnection
+
+export declare const connectStream: ConnectStream
+export declare const createStreamError: (code: StreamErrorCode, message?: string, data?: UTSJSONObject | null) => StreamFail

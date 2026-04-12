@@ -1,0 +1,15 @@
+import { StreamData } from './interface.uts'
+
+const LOG_TAG = '[hens-sse]'
+
+type StreamLogData = Object | StreamData
+
+export function logDebug(enabled: boolean, requestId: string, stage: string, data: StreamLogData | null = null): void {
+  if (!enabled) return
+  const prefix = `${LOG_TAG} [${requestId}] ${stage}`
+  if (data != null) {
+    console.log(prefix, data)
+    return
+  }
+  console.log(prefix)
+}

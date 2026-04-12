@@ -1,0 +1,101 @@
+/**
+ * Minimal UTF-8 stream decoder for ArrayBuffer chunks.
+ */
+
+export class Utf8StreamDecoder {
+  private pending: Uint8Array | null = null
+
+  decode(chunk: ArrayBuffer): string {
+    let input: Uint8Array = new Uint8Array(chunk)
+    if (this.pending != null && this.pending!.length > 0) {
+      const pendingLen: number = this.pending!.length
+      const inputLen: number = input.length
+      const merged = new Uint8Array(pendingLen + inputLen)
+      for (let k = 0; k < pendingLen; k++) merged[k] = this.pending![k]
+      for (let k = 0; k < inputLen; k++) merged[pendingLen + k] = input[k]
+      input = merged
+      this.pending = null
+    }
+
+    const out: string[] = []
+    let i: number = 0
+    const inputLen: number = input.length
+
+    while (i < inputLen) {
+      const b0 = input[i]
+      if (b0 < 0x80) {
+        out.push(String.fromCharCode(b0))
+        i += 1
+        continue
+      }
+
+      let need = 0
+      let codePoint = 0
+      if (b0 >= 0xc0 && b0 <= 0xdf) {
+        need = 2
+        codePoint = b0 & 0x1f
+      } else if (b0 >= 0xe0 && b0 <= 0xef) {
+        need = 3
+        codePoint = b0 & 0x0f
+      } else if (b0 >= 0xf0 && b0 <= 0xf7) {
+        need = 4
+        codePoint = b0 & 0x07
+      } else {
+        out.push('\uFFFD')
+        i += 1
+        continue
+      }
+
+      if (i + need > inputLen) break
+
+      let ok = true
+      for (let j = 1; j < need; j++) {
+        const bx = input[i + j]
+        if ((bx & 0xc0) != 0x80) {
+          ok = false
+          break
+        }
+      }
+
+      if (!ok) {
+        out.push('\uFFFD')
+        i += 1
+        continue
+      }
+
+      if (need == 2) {
+        codePoint = (codePoint << 6) | (input[i + 1] & 0x3f)
+      } else if (need == 3) {
+        codePoint = (codePoint << 12) | ((input[i + 1] & 0x3f) << 6) | (input[i + 2] & 0x3f)
+      } else {
+        codePoint =
+          (codePoint << 18) |
+          ((input[i + 1] & 0x3f) << 12) |
+          ((input[i + 2] & 0x3f) << 6) |
+          (input[i + 3] & 0x3f)
+      }
+
+      if (codePoint <= 0xffff) {
+        out.push(String.fromCharCode(codePoint))
+      } else {
+        const cp = codePoint - 0x10000
+        const hi = 0xd800 + (cp >> 10)
+        const lo = 0xdc00 + (cp & 0x3ff)
+        out.push(String.fromCharCode(hi))
+        out.push(String.fromCharCode(lo))
+      }
+      i += need
+    }
+
+    const remaining = inputLen - i
+    if (remaining > 0) {
+      const tail = new Uint8Array(remaining)
+      for (let k = 0; k < remaining; k++) tail[k] = input[i + k]
+      this.pending = tail
+    } else {
+      this.pending = null
+    }
+
+    return out.join('')
+  }
+}
