@@ -1,680 +1,413 @@
 <template>
-  <view class="container">
-    <!-- 固定头部区域 -->
-    <view class="header">
-      <text class="app-title">SSE 多连接 Demo</text>
-      <text class="app-subtitle">SSE Native Plugin Demo - 多连接</text>
-    </view>
+  <scroll-view class="page" scroll-y="true">
+    <view class="container">
+      <view class="hero">
+        <text class="title">流式接口测试</text>
+        <text class="subtitle">标准 SSE、逐行文本、JSONL 与原始文本流的统一验证工具</text>
+      </view>
 
-    <!-- 中间可滚动区域（占据 header 与 footer 之间的空间） -->
-    <scroll-view class="page-scroll" scroll-y="true">
-      <view class="content">
-        <!-- 多连接管理卡片 -->
-        <view class="card">
-          <text class="card-title">多连接管理</text>
-          <text class="card-description">为每个 URL 生成独立连接，可分别连接/断开，消息分别显示</text>
-
-          <view class="input-group">
-            <text class="input-label">服务器 URL:</text>
-            <input class="input-field" v-model="serverUrl" :placeholder="placeholderText" />
-          </view>
-
-          <!-- 前台服务配置 -->
-          <view class="foreground-section">
-            <text class="section-title">前台服务保活 (Android)</text>
-            <view class="switch-row">
-              <text class="switch-label">启用前台服务:</text>
-              <switch v-model="enableForeground" color="#007aff" />
-            </view>
-            
-            <view class="switch-row" v-if="enableForeground">
-              <text class="switch-label">启用 WakeLock:</text>
-              <switch v-model="wakeLockEnabled" color="#007aff" />
-            </view>
-
-            <view class="switch-row" v-if="enableForeground">
-              <text class="switch-label">启用 Wi-Fi Lock:</text>
-              <switch v-model="wifiLockEnabled" color="#007aff" />
-            </view>
-            
-            <view class="switch-row" v-if="enableForeground">
-              <text class="switch-label">通知重要性:</text>
-              <view class="picker-buttons">
-                <view 
-                  class="picker-btn" 
-                  :class="{ active: (importanceIndex as number) == 0 }" 
-                  @click="setImportance(0)">
-                  <text>低</text>
-                </view>
-                <view 
-                  class="picker-btn" 
-                  :class="{ active: (importanceIndex as number) == 1 }" 
-                  @click="setImportance(1)">
-                  <text>默认</text>
-                </view>
-                <view 
-                  class="picker-btn" 
-                  :class="{ active: (importanceIndex as number) == 2 }" 
-                  @click="setImportance(2)">
-                  <text>高</text>
-                </view>
-              </view>
-            </view>
-          </view>
-
-          <view class="button-group">
-            <view class="btn btn-primary" @click="addConnection">
-              <text class="btn-text text-strong">添加连接</text>
-            </view>
-            <view class="btn btn-secondary" @click="connectAll" v-if="connections.length > 0">
-              <text class="btn-text text-strong">全部连接</text>
-            </view>
-            <view class="btn btn-danger" @click="disconnectAll" v-if="connections.length > 0">
-              <text class="btn-text text-strong">全部断开</text>
-            </view>
+      <view class="card">
+        <text class="section-title">01 / 配置</text>
+        
+        <text class="label">协议</text>
+        <view class="tabs">
+          <view v-for="(label, index) in protocolLabels" :key="index" class="tab" :class="{ active: protocolIndex == index }" @click="pickProtocol(index)">
+            <text class="tab-text" :class="{ 'tab-text-active': protocolIndex == index }">{{ label }}</text>
           </view>
         </view>
 
-        <!-- 连接列表 -->
-        <view class="card" v-for="item in connections" :key="item.requestId">
-          <text class="card-title">连接 {{ shortId(item.requestId) }}</text>
-          <text class="card-description text-wrap">{{ item.url }}</text>
-          <text class="foreground-status" v-if="item.foregroundEnabled">🔒 前台服务</text>
+        <text class="label">URL</text>
+        <input class="input" v-model="serverUrl" placeholder="请输入流式接口地址" />
 
-          <view class="button-group">
-            <view class="btn btn-primary" @click="connectConnection(item.requestId)" v-if="!item.isConnected">
-              <text class="btn-text text-strong">连接</text>
-            </view>
-            <view class="btn btn-danger" @click="disconnectConnection(item.requestId)" v-else>
-              <text class="btn-text text-strong">断开</text>
-            </view>
-            <view class="btn" style="background:#999" @click="removeConnection(item.requestId)">
-              <text class="btn-text text-strong">移除</text>
-            </view>
-          </view>
-
-          <view class="status-card" v-if="item.status">
-            <text class="status-title text-strong">状态</text>
-            <text class="status-content text-wrap">{{ item.status }}</text>
-          </view>
-
-          <text class="card-title" style="margin-top: 5px;">消息</text>
-          <view class="message-container">
-            <view class="message-item" v-for="(msg, index) in item.messages" :key="index">
-              <text class="message-time">{{ msg.time }}</text>
-              <text class="message-content text-wrap">{{ msg.content }}</text>
-            </view>
-            <text class="no-messages" v-if="(item.messages.length as number) == 0">等待消息...</text>
+        <text class="label">请求方法</text>
+        <view class="tabs compact">
+          <view v-for="(item, index) in methods" :key="item" class="tab" :class="{ active: methodIndex == index }" @click="pickMethod(index)">
+            <text class="tab-text" :class="{ 'tab-text-active': methodIndex == index }">{{ item }}</text>
           </view>
         </view>
 
-        <!-- 结果显示区域 -->
-        <view class="result-card" v-if="resultMessage">
-          <text class="result-title text-strong">提示</text>
-          <text class="result-content text-wrap">{{ resultMessage }}</text>
+        <text class="label">请求体（JSON 或纯文本，可留空）</text>
+        <textarea class="textarea" v-model="requestBody" auto-height placeholder='例如：{"topic":"demo"}' />
+      </view>
+
+      <view class="card">
+        <text class="section-title">02 / 操作</text>
+        <view class="actions">
+          <view class="btn primary" @click="startStream">
+            <text class="btn-text primary-text">开始</text>
+          </view>
+          <view class="btn" @click="stopStream">
+            <text class="btn-text">停止</text>
+          </view>
+        </view>
+        
+        <view class="status-box">
+          <view class="status-row">
+            <text class="status-label">状态</text>
+            <text class="status-value">{{ statusText }}</text>
+          </view>
+          <view class="divider"></view>
+          <view class="status-row">
+            <text class="status-label">统计</text>
+            <text class="status-value">数据块: {{ chunkCount }} / 消息: {{ messageCount }}</text>
+          </view>
         </view>
       </view>
-    </scroll-view>
 
-    <!-- 固定底部信息 -->
-    <view class="footer">
-      <text class="footer-text">基于 UniApp X 原生插件开发</text>
+      <view class="card log-card">
+        <view class="log-header">
+          <text class="section-title">03 / 日志</text>
+        </view>
+        <view class="log-list">
+          <view class="log-item" v-for="(item, index) in logs" :key="index">
+            <view class="log-meta">
+               <text class="log-time">{{ item.time }}</text>
+               <text class="log-kind">{{ item.kind }}</text>
+            </view>
+            <text class="log-text">{{ item.text }}</text>
+          </view>
+          <text class="empty" v-if="logs.length == 0">等待连接...</text>
+        </view>
+      </view>
     </view>
-  </view>
+  </scroll-view>
 </template>
 
 <script>
-import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from "@/uni_modules/sse-plugin";
+import { connectStream, StreamConnection, StreamProtocol } from '@/uni_modules/sse-plugin'
 
-type Message = {
+type LogItem = {
   time: string
-  content: string
-}
-
-type Connection = {
-  requestId: string
-  url: string
-  isConnected: boolean
-  status: string
-  messages: Message[]
-  foregroundEnabled: boolean  // 新增前台服务配置
+  kind: string
+  text: string
 }
 
 export default {
   data() {
-      // 根据平台选择默认 URL（两个条件编译足够）
-      // #ifdef APP-ANDROID
-      const defaultUrl: string = 'http://10.0.2.2:3000/sse';
-      // #endif
-      // #ifndef APP-ANDROID
-      const defaultUrl: string = 'http://localhost:3000/sse';
-      // #endif
+    // #ifdef APP-ANDROID
+    const host = '10.0.2.2'
+    // #endif
+    // #ifndef APP-ANDROID
+    const host = 'localhost'
+    // #endif
 
-      return {
-      resultMessage: '',
-      serverUrl: defaultUrl,
-      placeholderText: defaultUrl,
-      // 前台服务配置
-      enableForeground: true,  // 改为 true，方便测试前台服务
-      foregroundTitle: 'SSE 正在保持连接',
-      foregroundText: '后台保持连接以接收消息',
-      foregroundImportance: 'low',
-      wakeLockEnabled: true,
-      wifiLockEnabled: true,
-      notifications: 'auto',
-      importanceIndex: 0,
-        connections: [] as Connection[]
+    return {
+      protocolLabels: ['SSE', 'Line', 'JSONL', 'Raw'],
+      protocolValues: ['sse', 'line', 'jsonl', 'raw'],
+      protocolPaths: ['/sse', '/line-stream', '/jsonl-stream', '/raw-stream'],
+      methods: ['GET', 'POST'],
+      protocolIndex: 0,
+      methodIndex: 0,
+      serverUrl: `http://${host}:3000/sse`,
+      requestBody: '',
+      statusText: '未连接',
+      chunkCount: 0,
+      messageCount: 0,
+      logs: [] as LogItem[],
+      activeConnection: null as StreamConnection | null,
     }
-  },
-  onLoad() {
-    console.log("[UniApp DEBUG] onLoad - setup global SSE listeners");
-    this.setupSSEEventListeners();
-  },
-  onUnload() {
-    this.cleanupSSE();
   },
   methods: {
-    
-    // 生成短 ID 显示
-    shortId(id: string): string {
-      if (id.length === 0) return '';
-      return id.length > 8 ? id.slice(0, 4) + '…' + id.slice(-3) : id;
+    pickProtocol(index: number) {
+      this.protocolIndex = index
+      const path = this.protocolPaths[index] as string
+      const value = this.protocolValues[index] as StreamProtocol
+      const url = this.serverUrl as string
+      const schemeIndex = url.indexOf('://')
+      const searchStart = schemeIndex == -1 ? 0 : schemeIndex + 3
+      const slashIndex = url.indexOf('/', searchStart)
+      const origin = slashIndex == -1 ? url : url.slice(0, slashIndex)
+      this.serverUrl = `${origin}${path}`
+      this.statusText = `已切换协议: ${value}`
     },
-
-    // 设置通知重要性
-    setImportance(index: number) {
-      this.importanceIndex = index;
-      const importanceOptions = ['low', 'default', 'high'];
-      this.foregroundImportance = importanceOptions[index];
-      this.resultMessage = `通知重要性: ${['低', '默认', '高'][index]}`;
+    pickMethod(index: number) {
+      this.methodIndex = index
     },
-
-    // 获取通知重要性值
-    getImportanceValue(): 'min' | 'low' | 'default' | 'high' | 'max' {
-      switch (this.importanceIndex) {
-        case 0: return 'low';
-        case 1: return 'default';
-        case 2: return 'high';
-        default: return 'low';
-      }
-    },
-
-    // 添加连接
-    addConnection() {
-      if (this.serverUrl.length === 0) {
-        this.resultMessage = '请输入服务器 URL';
-        return;
-      }
-      const requestId = `sse_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-      console.log(`[addConnection] enableForeground=${this.enableForeground}, wakeLock=${this.wakeLockEnabled}`);
-      this.connections.unshift({
-        requestId,
-        url: this.serverUrl,
-        isConnected: false,
-        status: '待连接',
-        messages: [],
-        foregroundEnabled: this.enableForeground as boolean // 明确类型转换
-      });
-      console.log(`[addConnection] 连接已添加，foregroundEnabled=${this.enableForeground}`);
-      this.resultMessage = `已添加连接：${requestId}`;
-    },
-
-    // Android 平台将 localhost/127.0.0.1/::1 映射为 10.0.2.2（Android 模拟器环回地址）
-    resolveUrlForAndroid(url: string): string {
-      let resolved = url;
-      // #ifdef APP-ANDROID
-      if (resolved.length > 0) {
-        const patterns = [
-          '://localhost',
-          '://127.0.0.1',
-          '://[::1]'
-        ];
-        for (let i = 0; i < patterns.length; i++) {
-          const p = patterns[i];
-          if (resolved.indexOf(p) !== -1) {
-            resolved = resolved.replace(p, '://10.0.2.2');
-          }
+    parseBody(): string | UTSJSONObject | null {
+      const text = this.requestBody.trim()
+      if (text.length == 0) return null
+      if (text.startsWith('{') || text.startsWith('[')) {
+        try {
+          return JSON.parse(text) as UTSJSONObject
+        } catch (_) {
+          return text
         }
       }
-      // #endif
-      return resolved;
+      return text
     },
-
-    // 连接指定连接
-    connectConnection(requestId: string) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId);
-      if (idx < 0) return;
-      const conn = this.connections[idx];
-      conn.foregroundEnabled = this.enableForeground as boolean;
-      conn.status = '连接中…';
-      const finalUrl = this.resolveUrlForAndroid(conn.url);
-      if (finalUrl !== conn.url) {
-        // 同步显示被替换后的 URL，便于用户感知
-        this.connections[idx].url = finalUrl;
-        this.connections[idx].status = '检测到 Android 环境，已将 localhost 映射为 10.0.2.2';
-      }
-      
-      // 构建连接选项
-      const url = finalUrl;
-      const id = conn.requestId;
-      const headers = { 'User-Agent': 'UniApp-X-SSE-Plugin' };
-      const failCallback = (err: any) => {
-        conn.status = `连接失败: ${JSON.stringify(err)}`;
-      };
-      const completeCallback = (res: any) => {};
-      
-      // 检查是否启用前台服务
-      console.log(`[connectConnection] requestId=${id}, foregroundEnabled=${conn.foregroundEnabled}`);
-      if (conn.foregroundEnabled === true) {
-        console.log(`[connectConnection] 使用前台服务连接`);
-        // 启用前台服务的连接选项
-        sseConnectApi({
-          url: url,
-          requestId: id,
-          headers: headers,
-          fail: failCallback,
-          complete: completeCallback,
-          foregroundEnabled: true,
-          wakeLockEnabled: this.wakeLockEnabled,
-          wifiLockEnabled: this.wifiLockEnabled,
-          notifications: this.notifications,
-          foregroundTitle: this.foregroundTitle,
-          foregroundText: this.foregroundText,
-          foregroundImportance: this.getImportanceValue()
-        });
-      } else {
-        console.log(`[connectConnection] 使用普通连接（前台服务未启用）`);
-        // 普通连接选项
-        sseConnectApi({
-          url: url,
-          requestId: id,
-          headers: headers,
-          fail: failCallback,
-          complete: completeCallback
-        });
+    nowText(): string {
+      const now = new Date()
+      return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
+    },
+    pushLog(kind: string, text: string) {
+      this.logs.unshift({ time: this.nowText(), kind, text })
+      if (this.logs.length > 80) {
+        this.logs = this.logs.slice(0, 80)
       }
     },
-
-    // 断开指定连接
-    disconnectConnection(requestId: string) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId);
-      if (idx < 0) return;
-      sseCloseApi(requestId);
-    },
-
-    // 全部连接
-    connectAll() {
-      for (let i = 0; i < this.connections.length; i++) {
-        this.connectConnection(this.connections[i].requestId);
+    stopStream() {
+      const activeConnection = this.activeConnection as StreamConnection | null
+      if (activeConnection != null) {
+        try {
+          activeConnection.abort()
+        } catch (_) {}
+        this.activeConnection = null
       }
+      this.statusText = '已停止'
     },
+    startStream() {
+      this.stopStream()
+      this.logs = []
+      this.chunkCount = 0
+      this.messageCount = 0
 
-    // 全部断开
-    disconnectAll() {
-      for (let i = 0; i < this.connections.length; i++) {
-        sseCloseApi(this.connections[i].requestId);
-      }
-    },
+      const url = this.serverUrl as string
+      const protocol = this.protocolValues[this.protocolIndex] as StreamProtocol
+      const method = this.methods[this.methodIndex] as string
+      const body = method == 'POST' ? this.parseBody() : null
 
-    // 移除连接（如已连接将触发 onClose 回调）
-    removeConnection(requestId: string) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId);
-      if (idx < 0) return;
-      // 若仍连接，先断开
-      if (this.connections[idx].isConnected) {
-        sseCloseApi(requestId);
-      }
-      this.connections.splice(idx, 1);
-    },
+      const connection: StreamConnection = connectStream({
+        url,
+        method,
+        protocol,
+        headers: { 'X-Demo-Protocol': `${protocol}` },
+        body,
+      })
+      this.activeConnection = connection
+      this.statusText = `连接中: ${protocol}`
 
-    // 事件监听（全局）
-    setupSSEEventListeners() {
-      sseAddEventListenerApi({
-        onOpen: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
-          if (idx < 0) return;
-          this.connections[idx].isConnected = true;
-          this.connections[idx].status = `连接成功: ${event.requestId}`;
-        },
-        onMessage: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
-          if (idx < 0) return;
-          this.addMessage(event.requestId, event.message);
-        },
-        onError: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
-          if (idx < 0) return;
-          this.connections[idx].status = `错误: ${event.error}`;
-        },
-        onClose: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId);
-          if (idx < 0) return;
-          this.connections[idx].isConnected = false;
-          this.connections[idx].status = `已关闭: ${event.requestId}`;
-        }
-      });
-    },
-
-    addMessage(requestId: string, content: string) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId);
-      if (idx < 0) return;
-      const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-      this.connections[idx].messages.unshift({ time: timeStr, content });
-      if (this.connections[idx].messages.length > 50) {
-        this.connections[idx].messages = this.connections[idx].messages.slice(0, 50);
-      }
-    },
-
-    cleanupSSE() {
-      this.disconnectAll();
-      sseRemoveEventListenerApi(null); // 清理全局监听（全局清空需显式传 null）
+      connection.onOpen((evt) => {
+        this.statusText = `已连接 HTTP ${evt.statusCode}`
+        this.pushLog('open', JSON.stringify(evt.headers) ?? 'open')
+      })
+      connection.onChunk((evt) => {
+        this.chunkCount += 1
+        this.pushLog('chunk', evt.text)
+      })
+      connection.onMessage((evt) => {
+        this.messageCount += 1
+        const eventName = evt.event != null ? evt.event : 'message'
+        this.pushLog(eventName, evt.rawText)
+      })
+      connection.onError((err) => {
+        this.statusText = `错误: ${err.errMsg}`
+        this.pushLog('error', err.errMsg)
+      })
+      connection.onComplete(() => {
+        this.pushLog('complete', 'stream completed')
+      })
     }
+  },
+  onUnload() {
+    this.stopStream()
   }
 }
 </script>
 
 <style>
-  .container {
-    background: #f5f5f5;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    height: 100%;
-    overflow: hidden;
-  }
-	
-	/* 头部区域 */
-  .header {
-    /* 保持在文档流中以配合 flex 布局 */
-    padding: 12px 20px 10px;
-    text-align: center;
-    background: #f5f5f5;
-    border-bottom: 1px solid #eaeaea;
-    flex-shrink: 0;
-  }
-	
-  .app-title {
-    font-size: 24px;
-    font-weight: bold;
-    color: #333333;
-    margin-bottom: 5px;
-  }
-	
-  .app-subtitle {
-    font-size: 14px;
-    color: #666666;
-  }
-	
-  /* 内容区域 */
-  .content {
-    padding: 0 20px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-  }
-  .page-scroll {
-    /* 占据 header 与 footer 之间的剩余空间 */
-    flex: 1 1 auto;
-    height: 0
-  }
-	
-  .card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 25px 20px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  }
-	
-  .card-title {
-    font-size: 18px;
-    font-weight: bold;
-    color: #333333;
-    text-align: center;
-    margin-bottom: 10px;
-  }
-	
-  .card-description {
-    font-size: 14px;
-    color: #666666;
-    text-align: center;
-    line-height: 1.6;
-    margin-bottom: 25px;
-  }
-	
-	/* 按钮组 */
-  .button-group {
-    display: flex;
-    flex-direction: column;
-  }
-	
-  .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 15px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    margin-bottom: 10px;
-  }
-	
-	.btn:last-child {
-		margin-bottom: 0;
-	}
-	
-	.btn:active {
-		transform: scale(0.98);
-	}
-	
-	.btn-primary {
-		background: #007aff;
-		box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.3);
-	}
-	
-	.btn-secondary {
-		background: #34c759;
-		box-shadow: 0 4rpx 12rpx rgba(52, 199, 89, 0.3);
-	}
-	
-	.btn-danger {
-		background: #ff3b30;
-		box-shadow: 0 4rpx 12rpx rgba(255, 59, 48, 0.3);
-	}
-	
-  .btn-text {
-    font-size: 16px;
-    font-weight: 700;
-    color: #ffffff;
-  }
-	
-	/* 结果显示 */
-  .result-card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-left: 3px solid #007aff;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  }
-	
-  .result-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #333333;
-    margin-bottom: 8px;
-  }
-	
-  .result-content {
-    font-size: 13px;
-    color: #666666;
-    line-height: 1.5;
-  }
-	
-	/* 底部 */
-  .footer {
-    /* 保持在文档流底部 */
-    padding: 12px 20px;
-    text-align: center;
-    background: #f5f5f5;
-    border-top: 1px solid #eaeaea;
-    flex-shrink: 0;
-  }
-	
-  .footer-text {
-    font-size: 12px;
-    color: #999999;
-  }
-	
-	/* 输入框样式 */
-  .input-group {
-    margin-bottom: 20px;
-  }
-	
-  .input-label {
-    font-size: 14px;
-    color: #333333;
-    margin-bottom: 8px;
-    display: flex;
-  }
-	
-  .input-field {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    font-size: 14px;
-    background: #ffffff;
-  }
-	
-	.input-field:focus {
-		border-color: #007aff;
-	}
-	
-	/* 消息显示样式 */
-  .message-container {
-    max-height: 200px;
-    overflow: hidden;
-  }
-	
-  .message-item {
-    padding: 10px 0;
-    border-bottom: 1px solid #f0f0f0;
-  }
-	
-	.message-item:last-child {
-		border-bottom: none;
-	}
-	
-  .message-time {
-    font-size: 12px;
-    color: #999999;
-    margin-bottom: 4px;
-    display: flex;
-  }
-	
-  .message-content {
-    font-size: 13px;
-    color: #333333;
-    line-height: 1.4;
-  }
-	
-  .no-messages {
-    font-size: 13px;
-    color: #999999;
-    text-align: center;
-    padding: 20px 0;
-  }
-	
-	/* 状态显示样式 */
-  .status-card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-left: 3px solid #ff9500;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  }
-	
-  .status-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #333333;
-    margin-bottom: 8px;
-  }
-	
-  .status-content {
-    font-size: 13px;
-    color: #666666;
-    line-height: 1.5;
-  }
+.page {
+  flex: 1;
+  background-color: #F5F2ED;
+}
 
-  /* 前台服务相关样式 */
-  .foreground-section {
-    margin: 20px 0;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
-  }
+.container {
+  padding: 32px 24px 64px;
+}
 
-  .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 15px;
-    display: block;
-  }
+.hero {
+  margin-bottom: 40px;
+}
 
-  .switch-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  color: #1A1714;
+  letter-spacing: 0.5px;
+}
 
-  .switch-row:last-child {
-    margin-bottom: 0;
-  }
+.subtitle {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 24px;
+  color: #6B665C;
+}
 
-  .switch-label {
-    font-size: 14px;
-    color: #333;
-  }
+.card {
+  margin-bottom: 24px;
+  padding: 24px;
+  border-radius: 8px;
+  background-color: #F5F2ED;
+  border: 1px solid #EDE6DE;
+}
 
-  .picker-btn {
-    padding: 8px 12px;
-    background-color: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin: 0 4px;
-    text-align: center;
-    font-size: 14px;
-  }
+.section-title {
+  font-size: 14px;
+  color: #8A8175;
+  margin-bottom: 24px;
+  letter-spacing: 1px;
+}
 
-  .picker-btn.active {
-    background-color: #007aff;
-    border-color: #007aff;
-  }
+.label {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #6B665C;
+}
 
-  .picker-btn.active text {
-    color: #fff;
-  }
+.tabs {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
 
-  .picker-buttons {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    flex: 1;
-  }
+.tab {
+  padding: 8px 16px;
+  margin-right: 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  border: 1px solid #EDE6DE;
+  background-color: transparent;
+}
 
-  .foreground-status {
-    font-size: 12px;
-    color: #007aff;
-    background: #e3f2fd;
-    padding: 4px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    margin-bottom: 8px;
-  }
+.tab.active {
+  border-color: #2D2A25;
+  background-color: #2D2A25;
+}
+
+.tab-text {
+  font-size: 14px;
+  color: #6B665C;
+}
+
+.tab-text-active {
+  color: #F5F2ED;
+}
+
+.input,
+.textarea {
+  box-sizing: border-box;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: #2D2A25;
+  border: 1px solid #EDE6DE;
+  border-radius: 4px;
+  background-color: #F5F2ED;
+  margin-bottom: 24px;
+}
+
+.textarea {
+  min-height: 80px;
+}
+
+.actions {
+  flex-direction: row;
+  margin-bottom: 24px;
+}
+
+.btn {
+  flex: 1;
+  padding: 12px 0;
+  border-radius: 4px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #EDE6DE;
+}
+
+.btn.primary {
+  margin-right: 16px;
+  border-color: #2D2A25;
+  background-color: #2D2A25;
+}
+
+.btn.danger {
+  background-color: transparent;
+}
+
+.primary-text {
+  color: #F5F2ED;
+  font-size: 15px;
+}
+
+.btn-text {
+  color: #2D2A25;
+  font-size: 15px;
+}
+
+.status-box {
+  padding: 16px;
+  border-radius: 4px;
+  background-color: #EDE6DE;
+}
+
+.status-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.divider {
+  height: 1px;
+  background-color: transparent;
+  border-bottom: 1px solid #DFD8CE;
+  margin: 12px 0;
+}
+
+.status-label {
+  font-size: 14px;
+  color: #6B665C;
+}
+
+.status-value {
+  font-size: 14px;
+  color: #2D2A25;
+}
+
+.log-card {
+  padding-bottom: 12px;
+}
+
+.log-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.log-list {
+  flex-direction: column;
+}
+
+.log-item {
+  padding: 16px 0;
+  border-bottom: 1px solid #EDE6DE;
+}
+
+.log-meta {
+  flex-direction: row;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.log-time {
+  font-size: 12px;
+  color: #8A8175;
+}
+
+.log-kind {
+  font-size: 12px;
+  color: #8A9980;
+}
+
+.log-text {
+  font-size: 14px;
+  color: #2D2A25;
+  line-height: 1.5;
+}
+
+.empty {
+  padding: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: #8A8175;
+}
 </style>

@@ -3,15 +3,15 @@
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "SSE 多连接 Demo"
+				"navigationBarTitleText": "流式接口实验室"
 			}
 		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "SSE 多连接 Demo",
-		"navigationBarBackgroundColor": "#F8F8F8",
-		"backgroundColor": "#F8F8F8"
+		"navigationBarTitleText": "流式接口实验室",
+		"navigationBarBackgroundColor": "#F5F2ED",
+		"backgroundColor": "#F5F2ED"
 	},
 	"uniIdRouter": {}
 }
