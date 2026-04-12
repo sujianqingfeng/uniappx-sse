@@ -1,0 +1,232 @@
+import {
+  StreamConnectOptions,
+  StreamConnection,
+  StreamOpenEvent,
+  StreamChunkEvent,
+  StreamProtocol,
+  StreamErrorCode,
+  StreamFail,
+  ConnectStream,
+  StreamMessageEvent,
+} from '../interface.uts'
+import { createStreamError } from '../unierror.uts'
+import { StreamConnectionImpl } from '../internal/runtime.uts'
+import { parseBuffer } from '../internal/parser.uts'
+import { logDebug } from '../logger.uts'
+
+type StreamIOSBridgeContext = {
+  connection: StreamConnectionImpl
+  streamProtocol: StreamProtocol
+  buffer: string
+  autoParseJson: boolean | null
+  debug: boolean
+}
+
+const bridgeContexts: Map<string, StreamIOSBridgeContext> = new Map()
+let bridgeIndex = 0
+let managerCallbacksBound = false
+
+function nextRequestId(): string {
+  bridgeIndex += 1
+  return `sse_${Date.now()}_${bridgeIndex}`
+}
+
+function normalizeProtocol(inputProtocol?: StreamProtocol | null): StreamProtocol {
+  if (inputProtocol == null) return 'sse'
+  return inputProtocol
+}
+
+function normalizeMethod(method?: string | null): string {
+  const value = `${method ?? 'GET'}`.trim().toUpperCase()
+  return value.length > 0 ? value : 'GET'
+}
+
+function normalizeDebug(debug?: boolean | null): boolean {
+  return debug == true
+}
+
+function normalizeBodyText(options: StreamConnectOptions): string | null {
+  if (options.body == null) return null
+  if (typeof options.body == 'string') return options.body as string
+  return JSON.stringify(options.body) ?? null
+}
+
+function releaseContext(requestId: string): void {
+  bridgeContexts.delete(requestId)
+}
+
+function handleOpen(requestId: string, statusCode: number, headers: UTSJSONObject): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+
+  const event: StreamOpenEvent = {
+    statusCode,
+    headers,
+  }
+  logDebug(ctx.debug, requestId, 'open', event)
+  ctx.connection.emitOpen(event)
+
+  if (statusCode >= 400) {
+    const data: UTSJSONObject = {}
+    data['statusCode'] = statusCode
+    const err = createStreamError(9030004, `HTTP ${statusCode}`, data)
+    logDebug(ctx.debug, requestId, 'error', err)
+    ctx.connection.emitError(err)
+    ctx.connection.finishOnce()
+    releaseContext(requestId)
+  }
+}
+
+function handleChunk(requestId: string, text: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+  if (text.length == 0) return
+
+  logDebug(ctx.debug, requestId, 'chunk', {
+    length: text.length,
+    text,
+  })
+  ctx.connection.emitChunk(text)
+  if (ctx.streamProtocol == 'raw') return
+
+  ctx.buffer += text
+  const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, false, ctx.autoParseJson)
+  ctx.buffer = parsed.rest
+  for (let i = 0; i < parsed.messages.length; i++) {
+    const message = parsed.messages[i] as StreamMessageEvent
+    logDebug(ctx.debug, requestId, 'message', message)
+    ctx.connection.emitMessage(message)
+  }
+}
+
+function handleError(requestId: string, message: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+  const err = createStreamError(9030003, message, null)
+  logDebug(ctx.debug, requestId, 'error', err)
+  ctx.connection.emitError(err)
+  ctx.connection.finishOnce()
+  releaseContext(requestId)
+}
+
+function handleComplete(requestId: string): void {
+  const ctx = bridgeContexts.get(requestId)
+  if (ctx == null) return
+
+  if (ctx.streamProtocol != 'raw') {
+    const parsed = parseBuffer(ctx.streamProtocol, ctx.buffer, true, ctx.autoParseJson)
+    ctx.buffer = parsed.rest
+    for (let i = 0; i < parsed.messages.length; i++) {
+      const message = parsed.messages[i] as StreamMessageEvent
+      logDebug(ctx.debug, requestId, 'message', message)
+      ctx.connection.emitMessage(message)
+    }
+  }
+
+  logDebug(ctx.debug, requestId, 'complete')
+  ctx.connection.finishOnce()
+  releaseContext(requestId)
+}
+
+function ensureManagerCallbacks(): void {
+  if (managerCallbacksBound) return
+  managerCallbacksBound = true
+
+  SSEStreamManager.shared.onOpen = (requestId: string, statusCode: number, headers: UTSJSONObject) => {
+    handleOpen(requestId, statusCode, headers)
+  }
+
+  SSEStreamManager.shared.onChunk = (requestId: string, text: string) => {
+    handleChunk(requestId, text)
+  }
+
+  SSEStreamManager.shared.onError = (requestId: string, message: string) => {
+    handleError(requestId, message)
+  }
+
+  SSEStreamManager.shared.onComplete = (requestId: string) => {
+    handleComplete(requestId)
+  }
+}
+
+export const connectStream: ConnectStream = function (options: StreamConnectOptions): StreamConnection {
+  const connection = new StreamConnectionImpl()
+  const debugEnabled = normalizeDebug(options.debug)
+  ensureManagerCallbacks()
+
+  if (options.url.length == 0) {
+    setTimeout(() => {
+      const err = createStreamError(9030002, 'Invalid stream URL', null)
+      logDebug(debugEnabled, 'pending', 'error', err)
+      connection.emitError(err)
+      connection.finishOnce()
+    }, 0)
+    return connection
+  }
+
+  const streamProtocol = normalizeProtocol(options.protocol)
+  const autoParseJson = options.autoParseJson == null ? null : options.autoParseJson == true
+  const method = normalizeMethod(options.method)
+  const timeout = options.timeout == null ? 60000 : options.timeout
+  const bodyText = normalizeBodyText(options)
+  const requestId = nextRequestId()
+  bridgeContexts.set(requestId, {
+    connection,
+    streamProtocol,
+    buffer: '',
+    autoParseJson,
+    debug: debugEnabled,
+  })
+
+  connection.setAborter(() => {
+    logDebug(debugEnabled, requestId, 'abort')
+    SSEStreamManager.shared.abort(requestId)
+    releaseContext(requestId)
+  })
+
+  setTimeout(() => {
+    logDebug(debugEnabled, requestId, 'connect', {
+      url: options.url,
+      method,
+      protocol: streamProtocol,
+      timeout,
+      autoParseJson,
+      hasHeaders: options.headers != null,
+      hasBody: bodyText != null,
+    })
+    const started = SSEStreamManager.shared.connect(
+      requestId,
+      options.url,
+      method,
+      streamProtocol,
+      timeout,
+      options.headers,
+      bodyText
+    )
+    if (!started) {
+      const ctx = bridgeContexts.get(requestId)
+      if (ctx != null) {
+        const err = createStreamError(9030002, 'Invalid stream URL', null)
+        logDebug(debugEnabled, requestId, 'error', err)
+        ctx.connection.emitError(err)
+        ctx.connection.finishOnce()
+      }
+      releaseContext(requestId)
+    }
+  }, 0)
+
+  return connection
+}
+
+export { createStreamError }
+export {
+  StreamProtocol,
+  StreamErrorCode,
+  StreamFail,
+  StreamConnectOptions,
+  StreamOpenEvent,
+  StreamChunkEvent,
+  StreamMessageEvent,
+  StreamConnection,
+  ConnectStream,
+} from '../interface.uts'

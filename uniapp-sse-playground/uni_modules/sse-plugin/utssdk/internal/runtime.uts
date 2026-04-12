@@ -1,0 +1,61 @@
+import { StreamChunkEvent, StreamConnection, StreamFail, StreamMessageEvent, StreamOpenEvent } from '../interface.uts'
+
+export class StreamConnectionImpl implements StreamConnection {
+  private openCallback: ((evt: StreamOpenEvent) => void) | null = null
+  private chunkCallback: ((evt: StreamChunkEvent) => void) | null = null
+  private messageCallback: ((evt: StreamMessageEvent) => void) | null = null
+  private errorCallback: ((err: StreamFail) => void) | null = null
+  private completeCallback: (() => void) | null = null
+  private aborter: (() => void) | null = null
+  private completed: boolean = false
+
+  setAborter(aborter: (() => void) | null): void {
+    this.aborter = aborter
+  }
+
+  abort(): void {
+    if (this.completed) return
+    try { this.aborter?.() } catch (_) {}
+    this.finishOnce()
+  }
+
+  onOpen(callback: ((evt: StreamOpenEvent) => void) | null): void { this.openCallback = callback }
+  offOpen(): void { this.openCallback = null }
+  onChunk(callback: ((evt: StreamChunkEvent) => void) | null): void { this.chunkCallback = callback }
+  offChunk(): void { this.chunkCallback = null }
+  onMessage(callback: ((evt: StreamMessageEvent) => void) | null): void { this.messageCallback = callback }
+  offMessage(): void { this.messageCallback = null }
+  onError(callback: ((err: StreamFail) => void) | null): void { this.errorCallback = callback }
+  offError(): void { this.errorCallback = null }
+  onComplete(callback: (() => void) | null): void { this.completeCallback = callback }
+  offComplete(): void { this.completeCallback = null }
+
+  emitOpen(evt: StreamOpenEvent): void {
+    if (this.completed) return
+    try { this.openCallback?.(evt) } catch (_) {}
+  }
+
+  emitChunk(text: string): void {
+    if (this.completed) return
+    if (text.length == 0) return
+    const evt: StreamChunkEvent = { text }
+    try { this.chunkCallback?.(evt) } catch (_) {}
+  }
+
+  emitMessage(evt: StreamMessageEvent): void {
+    if (this.completed) return
+    try { this.messageCallback?.(evt) } catch (_) {}
+  }
+
+  emitError(err: StreamFail): void {
+    if (this.completed) return
+    try { this.errorCallback?.(err) } catch (_) {}
+  }
+
+  finishOnce(): void {
+    if (this.completed) return
+    this.completed = true
+    try { this.completeCallback?.() } catch (_) {}
+  }
+}
+
