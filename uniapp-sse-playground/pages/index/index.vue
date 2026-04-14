@@ -4,6 +4,10 @@
       <view class="hero">
         <text class="title">流式接口测试</text>
         <text class="subtitle">标准 SSE、逐行文本、JSONL 与原始文本流的统一验证工具</text>
+        <view class="entry-card" @click="goToWangaiAgentPage">
+          <text class="entry-title">业务仿真页</text>
+          <text class="entry-text">按 `agent-new` 的 start、resume、retry、stop 方式测试插件</text>
+        </view>
       </view>
 
       <view class="card">
@@ -264,6 +268,11 @@ export default {
       }
       this.statusText = '已停止'
     },
+    goToWangaiAgentPage() {
+      uni.navigateTo({
+        url: '/pages/wangai-agent/index'
+      })
+    },
     startStream() {
       this.stopStream()
       this.logs = []
@@ -344,6 +353,27 @@ export default {
 
 .hero {
   margin-bottom: 40rpx;
+}
+
+.entry-card {
+  margin-top: 24rpx;
+  padding: 20rpx;
+  border-radius: 8rpx;
+  background: linear-gradient(135deg, #2d2a25 0%, #4f4639 100%);
+}
+
+.entry-title {
+  display: block;
+  color: #f5f2ed;
+  font-size: 15px;
+}
+
+.entry-text {
+  display: block;
+  margin-top: 8rpx;
+  color: #d7cfc5;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .title {

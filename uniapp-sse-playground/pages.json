@@ -5,6 +5,12 @@
 			"style": {
 				"navigationBarTitleText": "流式接口实验室"
 			}
+		},
+		{
+			"path": "pages/wangai-agent/index",
+			"style": {
+				"navigationBarTitleText": "WangAI Agent SSE"
+			}
 		}
 	],
 	"globalStyle": {
