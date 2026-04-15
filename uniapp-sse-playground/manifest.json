@@ -68,5 +68,22 @@
     "uniStatistics" : {
         "enable" : false
     },
-    "vueVersion" : "3"
+    "vueVersion" : "3",
+    "app-harmony" : {
+        "distribute" : {
+            "bundleName" : "com.example.uniappsseplayground",
+            /* 本地签名信息请在本机按需替换，勿提交真实证书和密码 */
+            "signingConfigs" : {
+                "default" : {
+                    "certpath" : "/path/to/your/harmony.cer",
+                    "keyAlias" : "yourKeyAlias",
+                    "keyPassword" : "YOUR_KEY_PASSWORD",
+                    "profile" : "/path/to/your/harmony-profile.p7b",
+                    "signAlg" : "SHA256withECDSA",
+                    "storeFile" : "/path/to/your/harmony.p12",
+                    "storePassword" : "YOUR_STORE_PASSWORD"
+                }
+            }
+        }
+    }
 }
