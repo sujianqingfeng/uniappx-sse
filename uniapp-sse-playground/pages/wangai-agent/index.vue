@@ -81,6 +81,18 @@
           </view>
         </view>
 
+        <view class="switch-row">
+          <view class="switch-copy">
+            <text class="label">详细调试</text>
+            <text class="tip inline-tip">默认只打印核心链路。打开后会输出 chunk、tasks、lifecycle，并开启插件 debug。</text>
+          </view>
+          <switch
+            :checked="form.debugMode === true"
+            color="#2d2a25"
+            @change="setDebugMode($event.detail.value)"
+          />
+        </view>
+
         <text class="tip">流地址会自动追加 `/wang-ai/...`，Android 模拟器里 `localhost` 会自动映射成 `10.0.2.2`。</text>
       </view>
 
@@ -278,6 +290,7 @@ function createDefaultForm() {
     token: DEFAULT_DEBUG_TOKEN,
     sourcePlatform: 'IWANGKE',
     platformClient: 'iwangke',
+    debugMode: false,
     prompt: '帮我说明一下这个流式接口的事件结构',
     threadId: '',
     runId: '',
@@ -302,6 +315,7 @@ function mergeStoredForm(stored = {}) {
     token: normalizeStoredValue(stored?.token, defaults.token),
     sourcePlatform: normalizeStoredValue(stored?.sourcePlatform, defaults.sourcePlatform),
     platformClient: normalizeStoredValue(stored?.platformClient, defaults.platformClient),
+    debugMode: stored?.debugMode === true,
     prompt: normalizeStoredValue(stored?.prompt, defaults.prompt),
     timeoutMs: normalizeStoredValue(stored?.timeoutMs, defaults.timeoutMs),
     templateType: normalizeStoredValue(stored?.templateType, defaults.templateType),
@@ -332,7 +346,9 @@ export default {
       activeBridge: null,
       activeStreamToken: '',
       streamTokenSeed: 0,
-      automationTokenSeed: 0
+      automationTokenSeed: 0,
+      messageLogBuffer: '',
+      messageLogTimer: 0
     }
   },
   computed: {
@@ -400,6 +416,7 @@ export default {
   },
   onLoad() {
     this.restoreConfig()
+    this.pushLog('lifecycle', this.snapshotRuntimeState('page:onLoad'))
     this.pushLog('config', this.stringifyPretty({
       baseUrl: this.form.baseUrl,
       hasToken: !!this.form.token,
@@ -407,10 +424,18 @@ export default {
       platformClient: this.form.platformClient
     }, ''))
   },
+  onShow() {
+    this.pushLog('lifecycle', this.snapshotRuntimeState('page:onShow'))
+  },
+  onHide() {
+    this.pushLog('lifecycle', this.snapshotRuntimeState('page:onHide'))
+  },
   onUnload() {
     this.persistConfig()
     this.automationName = ''
     this.automationToken = ''
+    this.flushMessageLogBuffer()
+    this.pushLog('lifecycle', this.snapshotRuntimeState('page:onUnload'))
     this.stopActiveStream({
       silent: true,
       reason: 'dispose-abort'
@@ -451,6 +476,14 @@ export default {
         uni.setStorageSync(STORAGE_KEY, this.form)
       } catch (error) {
       }
+    },
+    setDebugMode(value) {
+      this.form = {
+        ...this.form,
+        debugMode: value === true
+      }
+      this.persistConfig()
+      this.pushLog('config', `详细调试已${this.form.debugMode ? '开启' : '关闭'}`)
     },
     setFormField(key, value) {
       this.form = {
@@ -509,12 +542,86 @@ export default {
       }
       return `${text.slice(0, maxLength)}...`
     },
+    isDetailedDebugEnabled() {
+      return this.form?.debugMode === true
+    },
+    snapshotRuntimeState(label = '') {
+      return this.stringifyPretty({
+        label,
+        action: this.currentAction,
+        pendingAction: this.pendingAction,
+        automationName: this.automationName,
+        activeStreamToken: this.activeStreamToken,
+        hasActiveBridge: !!this.activeBridge,
+        statusText: this.statusText,
+        closeReason: this.closeReason,
+        chunkCount: this.chunkCount,
+        messageCount: this.messageCount,
+        latestEventName: this.latestEventName,
+        threadId: this.form.threadId,
+        runId: this.form.runId,
+        reportId: this.form.reportId,
+        checkpointId: this.form.checkpointId
+      }, '')
+    },
+    summarizeChunkLog(event) {
+      const text = `${event?.text || ''}`
+      return this.stringifyPretty({
+        length: text.length,
+        text: text.slice(0, 600)
+      }, '')
+    },
+    clearMessageLogTimer() {
+      if (!this.messageLogTimer) {
+        return
+      }
+      clearTimeout(this.messageLogTimer)
+      this.messageLogTimer = 0
+    },
+    flushMessageLogBuffer() {
+      this.clearMessageLogTimer()
+      const text = this.messageLogBuffer
+      if (!text) {
+        return
+      }
+      this.messageLogBuffer = ''
+      this.pushLog('message:messages', text)
+    },
+    scheduleMessageLogFlush() {
+      if (this.messageLogTimer) {
+        return
+      }
+      this.messageLogTimer = setTimeout(() => {
+        this.messageLogTimer = 0
+        this.flushMessageLogBuffer()
+      }, 320)
+    },
+    bufferMessageLog(summary) {
+      const text = `${summary || ''}`
+      if (!text) {
+        return
+      }
+      if (text === '[messages:end]') {
+        this.flushMessageLogBuffer()
+        this.pushLog('message:messages', text)
+        return
+      }
+      this.messageLogBuffer += text
+      if (
+        this.messageLogBuffer.length >= 32 ||
+        /[\n。！？]$/.test(this.messageLogBuffer)
+      ) {
+        this.flushMessageLogBuffer()
+        return
+      }
+      this.scheduleMessageLogFlush()
+    },
     shouldLogKind(kind) {
       const value = `${kind || ''}`
       if (value === 'config' || value === 'action' || value === 'action:prepare' || value === 'open' || value === 'complete' || value === 'automation') {
         return true
       }
-      if (value === 'http:create-thread' || value === 'http:run-id' || value === 'http:history' || value === 'context') {
+      if (value === 'http:create-thread' || value === 'http:run-id') {
         return true
       }
       if (value === 'error' || value === 'warn' || value === 'abort') {
@@ -524,6 +631,15 @@ export default {
         return true
       }
       if (value === 'message:metadata' || value === 'message:messages') {
+        return true
+      }
+      if (!this.isDetailedDebugEnabled()) {
+        return false
+      }
+      if (value === 'lifecycle' || value === 'chunk' || value === 'stream' || value === 'http:history' || value === 'context') {
+        return true
+      }
+      if (value.indexOf('message:') === 0) {
         return true
       }
       return false
@@ -706,6 +822,7 @@ export default {
       })
     },
     resetStreamSnapshot(action) {
+      this.flushMessageLogBuffer()
       this.statusText = `准备 ${action}`
       this.closeReason = ''
       this.chunkCount = 0
@@ -734,6 +851,13 @@ export default {
       } catch (error) {
         return text
       }
+    },
+    parseMessagePayloadFromRawText(message) {
+      const rawText = typeof message?.rawText === 'string' ? message.rawText.trim() : ''
+      if (!rawText) {
+        return ''
+      }
+      return this.tryParsePayload(rawText)
     },
     parseEventName(name = '') {
       const parts = `${name || ''}`.split('|')
@@ -1039,14 +1163,18 @@ export default {
       }
 
       if (eventName === 'messages' || base === 'messages') {
-        return this.extractMessageChunkLogText(payload)
+        const summary = this.extractMessageChunkLogText(payload)
+        if (summary) {
+          return summary
+        }
+        return this.stringifyPretty(payload, this.stringifySafe(payload, ''))
       }
 
       if (eventName === 'error' || base === 'error') {
         return this.stringifyPretty(payload, this.stringifySafe(payload, ''))
       }
 
-      return ''
+      return this.stringifyPretty(payload, this.stringifySafe(payload, ''))
     },
     processStreamPayload(payload, eventName = '') {
       if (Array.isArray(payload)) {
@@ -1158,10 +1286,19 @@ export default {
       const eventName = message?.event || 'message'
       this.latestEventName = eventName
 
-      const payload = this.tryParsePayload(message?.data)
+      const payload = this.parseMessagePayloadFromRawText(message)
+      if (!payload && payload !== 0 && payload !== false) {
+        this.pushLog('warn', `message:${eventName} 缺少 rawText，已忽略 data`)
+        return
+      }
       const summary = this.summarizeStreamLog(payload, eventName)
       if (summary) {
-        this.pushLog(`message:${eventName}`, summary)
+        const { base } = this.parseEventName(eventName)
+        if (eventName === 'messages' || base === 'messages') {
+          this.bufferMessageLog(summary)
+        } else {
+          this.pushLog(`message:${eventName}`, summary)
+        }
       }
       this.latestPayloadText = this.stringifyPretty(payload, this.stringifySafe(payload, ''))
       this.processStreamPayload(payload, eventName)
@@ -1403,6 +1540,13 @@ export default {
         })
       }
 
+      this.pushLog('stream', this.stringifyPretty({
+        action,
+        url: normalizeRuntimeUrl(url),
+        method,
+        debug: this.isDetailedDebugEnabled()
+      }, ''))
+
       this.stopActiveStream({
         silent: true,
         reason: 'replace-connection'
@@ -1420,7 +1564,7 @@ export default {
         headers: this.createRequestHeaders(),
         body,
         timeout: this.normalizeTimeout(),
-        debug: false,
+        debug: this.isDetailedDebugEnabled(),
         onOpen: (event) => {
           if (this.activeStreamToken !== token) {
             return
@@ -1433,6 +1577,7 @@ export default {
             return
           }
           this.chunkCount += 1
+          this.pushLog('chunk', this.summarizeChunkLog(event))
         },
         onMessage: (event) => {
           if (this.activeStreamToken !== token) {
@@ -1464,7 +1609,18 @@ export default {
             this.statusText = `连接结束: ${event?.reason || 'unknown'}`
           }
 
-          this.pushLog('complete', this.stringifyPretty(event, ''))
+          this.flushMessageLogBuffer()
+          this.pushLog('complete', this.stringifyPretty({
+            ...event,
+            action,
+            chunkCount: this.chunkCount,
+            messageCount: this.messageCount,
+            latestEventName: this.latestEventName,
+            threadId: this.form.threadId,
+            runId: this.form.runId,
+            reportId: this.form.reportId,
+            checkpointId: this.form.checkpointId
+          }, ''))
 
           if (event?.reason === 'normal-complete' && threadId) {
             this.syncRunContext({
@@ -1753,6 +1909,23 @@ export default {
 .action-mode-tip {
   margin-top: -4rpx;
   margin-bottom: 20rpx;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: -4rpx;
+  margin-bottom: 24rpx;
+  gap: 16rpx;
+}
+
+.switch-copy {
+  flex: 1;
+}
+
+.inline-tip {
+  margin-top: 4rpx;
 }
 
 .input,

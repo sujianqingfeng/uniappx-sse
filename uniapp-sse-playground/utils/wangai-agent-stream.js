@@ -244,7 +244,7 @@ export function createWangaiAgentStreamBridge({
       body,
       timeout,
       protocol: 'sse',
-      autoParseJson: true,
+      autoParseJson: false,
       debug
     })
   } catch (error) {
