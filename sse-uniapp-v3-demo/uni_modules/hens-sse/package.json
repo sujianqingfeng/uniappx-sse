@@ -1,28 +1,102 @@
 {
-    "id": "hens-sse",
-    "name": "SSE原生实现，支持uniapp和uniappx，支持三端",
-    "displayName": "SSE原生实现，支持uniapp和uniappx，支持三端",
-    "version": "1.0.0",
-    "description": "SSE原生实现，支持uniapp和uniappx，支持ios、android、web，可解决用 renderjs 实现 sse 的一些场景限制。",
-    "keywords": [
+	"id": "hens-sse",
+	"displayName": "SSE 流式请求插件，支持非标 SSE",
+	"version": "2.0.1",
+	"description": "适用于 uni-app 与 uni-app x 的 SSE、Line、JSONL、Raw 流式请求插件",
+	"keywords": [
         "sse",
-        "uts",
-        "uniapp",
-        "uniappx"
+        "stream",
+        "jsonl",
+        "uni-app",
+        "harmony"
     ],
-    "dcloudext": {
-        "type": "uts",
-        "sale": {
-            "regular": {
-                "price": "29.00"
-            },
-            "sourcecode": {
-                "price": "299.00"
-            }
-        }
-    },
-    "uni_modules": {
-        "dependencies": [],
-        "encrypt": []
-    }
+	"repository": "",
+	"engines": {
+		"HBuilderX": "^3.6.8",
+		"uni-app": "^5.06",
+		"uni-app-x": "^5.06"
+	},
+	"dcloudext": {
+		"type": "uts",
+		"sale": {
+			"regular": {
+				"price": "29.00"
+			},
+			"sourcecode": {
+				"price": "299.00"
+			}
+		},
+		"contact": {
+			"qq": ""
+		},
+		"declaration": {
+			"ads": "无",
+			"data": "无",
+			"permissions": "无"
+		},
+		"npmurl": "",
+		"darkmode": "x",
+		"i18n": "x",
+		"widescreen": "x"
+	},
+	"uni_modules": {
+		"dependencies": [],
+		"encrypt": [],
+		"platforms": {
+			"cloud": {
+				"tcb": "x",
+				"aliyun": "x",
+				"alipay": "x"
+			},
+			"client": {
+				"uni-app": {
+					"vue": {
+						"vue2": "√",
+						"vue3": "√"
+					},
+					"web": {
+						"safari": "-",
+						"chrome": "-"
+					},
+					"app": {
+						"vue": "√",
+						"nvue": "-",
+						"android": "√",
+						"ios": "√",
+						"harmony": "√"
+					},
+					"mp": {
+						"weixin": "-",
+						"alipay": "-",
+						"toutiao": "-",
+						"baidu": "-",
+						"kuaishou": "-",
+						"jd": "-",
+						"harmony": "-",
+						"qq": "-",
+                        "lark": "-",
+                        "xhs": "-"
+					},
+					"quickapp": {
+						"huawei": "-",
+						"union": "-"
+					}
+				},
+				"uni-app-x": {
+					"web": {
+						"safari": "-",
+						"chrome": "-"
+					},
+					"app": {
+						"android": "√",
+						"ios": "√",
+						"harmony": "√"
+					},
+					"mp": {
+						"weixin": "-"
+					}
+				}
+			}
+		}
+	}
 }
