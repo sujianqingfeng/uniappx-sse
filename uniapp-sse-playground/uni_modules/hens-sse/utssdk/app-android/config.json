@@ -1,6 +1,4 @@
 {
-  "dependencies": [
-    "com.squareup.okhttp3:okhttp:3.12.12"
-  ],
+  "dependencies": [],
   "minSdkVersion": "21"
 }
