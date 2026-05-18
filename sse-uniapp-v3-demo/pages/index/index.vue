@@ -1,388 +1,548 @@
 <template>
-  <view class="container">
-    <!-- 头部 -->
-    <view class="header">
-      <text class="app-title">SSE 多连接 Demo</text>
-      <text class="app-subtitle">SSE Plugin - Vue 3</text>
-    </view>
+  <scroll-view class="page" scroll-y>
+    <view class="container">
+      <view class="hero">
+        <text class="title">流式接口测试</text>
+        <text class="subtitle">标准 SSE、逐行文本、JSONL 与原始文本流的统一验证工具</text>
+      </view>
 
-    <!-- 中间可滚动区域 -->
-    <scroll-view class="page-scroll" scroll-y="true">
-      <view class="content">
-        <!-- 多连接管理卡片 -->
-        <view class="card">
-          <text class="card-title">多连接管理</text>
-          <text class="card-description">为每个 URL 生成独立连接，可分别连接/断开，消息分别显示</text>
+      <view class="card">
+        <text class="section-title">01 / 配置</text>
 
-          <view class="input-group">
-            <text class="input-label">服务器 URL:</text>
-            <input class="input-field" v-model="serverUrl" :placeholder="placeholderText" />
-          </view>
-
-          <view class="button-group">
-            <view class="btn btn-primary" @click="addConnection">
-              <text class="btn-text text-strong">添加连接</text>
-            </view>
-            <view class="btn btn-secondary" @click="connectAll" v-if="connections.length > 0">
-              <text class="btn-text text-strong">全部连接</text>
-            </view>
-            <view class="btn btn-danger" @click="disconnectAll" v-if="connections.length > 0">
-              <text class="btn-text text-strong">全部断开</text>
-            </view>
+        <text class="label">协议</text>
+        <view class="tabs">
+          <view
+            v-for="(label, index) in protocolLabels"
+            :key="label"
+            class="tab"
+            :class="{ active: protocolIndex === index }"
+            @click="pickProtocol(index)"
+          >
+            <text class="tab-text" :class="{ 'tab-text-active': protocolIndex === index }">{{ label }}</text>
           </view>
         </view>
 
-        <!-- 连接列表 -->
-        <view class="card" v-for="item in connections" :key="item.requestId">
-          <text class="card-title">连接 {{ shortId(item.requestId) }}</text>
-          <text class="card-description text-wrap">{{ item.url }}</text>
+        <text class="label">URL</text>
+        <input v-model="serverUrl" class="input" placeholder="请输入流式接口地址" />
 
-          <view class="button-group">
-            <view class="btn btn-primary" @click="connectConnection(item.requestId)" v-if="!item.isConnected">
-              <text class="btn-text text-strong">连接</text>
-            </view>
-            <view class="btn btn-danger" @click="disconnectConnection(item.requestId)" v-else>
-              <text class="btn-text text-strong">断开</text>
-            </view>
-            <view class="btn" style="background:#999" @click="removeConnection(item.requestId)">
-              <text class="btn-text text-strong">移除</text>
-            </view>
-          </view>
-
-          <view class="status-card" v-if="item.status">
-            <text class="status-title text-strong">状态</text>
-            <text class="status-content text-wrap">{{ item.status }}</text>
-          </view>
-
-          <text class="card-title" style="margin-top: 5px;">消息</text>
-          <view class="message-container">
-            <view class="message-item" v-for="(msg, index) in item.messages" :key="index">
-              <text class="message-time">{{ msg.time }}</text>
-              <text class="message-content text-wrap">{{ msg.content }}</text>
-            </view>
-            <text class="no-messages" v-if="item.messages.length === 0">等待消息...</text>
+        <text class="label">请求方法</text>
+        <view class="tabs compact">
+          <view
+            v-for="(item, index) in methods"
+            :key="item"
+            class="tab"
+            :class="{ active: methodIndex === index }"
+            @click="pickMethod(index)"
+          >
+            <text class="tab-text" :class="{ 'tab-text-active': methodIndex === index }">{{ item }}</text>
           </view>
         </view>
 
-        <!-- 结果显示区域 -->
-        <view class="result-card" v-if="resultMessage">
-          <text class="result-title text-strong">提示</text>
-          <text class="result-content text-wrap">{{ resultMessage }}</text>
+        <text class="label">消息数据解析</text>
+        <view class="tabs compact">
+          <view
+            v-for="(item, index) in parseModeLabels"
+            :key="item"
+            class="tab"
+            :class="{ active: parseModeIndex === index }"
+            @click="pickParseMode(index)"
+          >
+            <text class="tab-text" :class="{ 'tab-text-active': parseModeIndex === index }">{{ item }}</text>
+          </view>
+        </view>
+
+        <text class="label">请求体（JSON 或纯文本，可留空）</text>
+        <textarea
+          v-model="requestBody"
+          class="textarea"
+          auto-height
+          placeholder='例如：{"topic":"demo"}'
+        />
+      </view>
+
+      <view class="card">
+        <text class="section-title">02 / 操作</text>
+        <view class="actions">
+          <view class="btn primary" @click="startStream">
+            <text class="btn-text primary-text">开始</text>
+          </view>
+          <view class="btn" @click="stopStream">
+            <text class="btn-text">停止</text>
+          </view>
+        </view>
+
+        <view class="status-box">
+          <view class="status-row">
+            <text class="status-label">状态</text>
+            <text class="status-value">{{ statusText }}</text>
+          </view>
+          <view class="divider"></view>
+          <view class="status-row">
+            <text class="status-label">统计</text>
+            <text class="status-value">数据块: {{ chunkCount }} / 消息: {{ messageCount }}</text>
+          </view>
         </view>
       </view>
-    </scroll-view>
 
-    <!-- 底部信息 -->
-    <view class="footer">
-      <text class="footer-text">基于 uni-app（Vue 3）与 UTS 插件</text>
+      <view class="card log-card">
+        <view class="log-header">
+          <text class="section-title">03 / 日志</text>
+        </view>
+        <view class="log-list">
+          <view v-for="(item, index) in logs" :key="index" class="log-item">
+            <view class="log-meta">
+              <text class="log-time">{{ item.time }}</text>
+              <text class="log-kind">{{ item.kind }}</text>
+            </view>
+            <text class="log-text">{{ item.text }}</text>
+          </view>
+          <text v-if="logs.length === 0" class="empty">等待连接...</text>
+        </view>
+      </view>
     </view>
-  </view>
-  
+  </scroll-view>
 </template>
 
 <script>
-import { sseConnectApi, sseCloseApi, sseAddEventListenerApi, sseRemoveEventListenerApi } from '@/uni_modules/hens-sse'
+import { connectStream } from '@/uni_modules/hens-sse'
+
+const harmonySimulatorHost = '192.168.123.56'
+
+function resolveDefaultHost() {
+  // #ifdef APP-ANDROID
+  return '10.0.2.2'
+  // #endif
+  // #ifdef APP-HARMONY
+  return harmonySimulatorHost
+  // #endif
+  return 'localhost'
+}
+
+function normalizeRuntimeUrl(url) {
+  let resolved = url || ''
+  // #ifdef APP-ANDROID
+  const androidPatterns = [
+    '://localhost',
+    '://127.0.0.1',
+    '://[::1]'
+  ]
+
+  for (let i = 0; i < androidPatterns.length; i += 1) {
+    const pattern = androidPatterns[i]
+    if (resolved.indexOf(pattern) !== -1) {
+      resolved = resolved.replace(pattern, '://10.0.2.2')
+    }
+  }
+  // #endif
+  // #ifdef APP-HARMONY
+  const harmonyPatterns = [
+    '://localhost',
+    '://127.0.0.1',
+    '://[::1]'
+  ]
+
+  for (let i = 0; i < harmonyPatterns.length; i += 1) {
+    const pattern = harmonyPatterns[i]
+    if (resolved.indexOf(pattern) !== -1) {
+      resolved = resolved.replace(pattern, `://${harmonySimulatorHost}`)
+    }
+  }
+  // #endif
+  return resolved
+}
 
 export default {
   data() {
-    // 平台默认 URL
-    // #ifdef APP-ANDROID
-    const defaultUrl = 'http://10.0.2.2:3000/sse'
-    // #endif
-    // #ifndef APP-ANDROID
-    const defaultUrl = 'http://localhost:3000/sse'
-    // #endif
+    const host = resolveDefaultHost()
 
     return {
-      resultMessage: '',
-      serverUrl: defaultUrl,
-      placeholderText: defaultUrl,
-      connections: []
+      protocolLabels: ['SSE', 'Line', 'JSONL', 'Raw'],
+      protocolValues: ['sse', 'line', 'jsonl', 'raw'],
+      protocolPaths: ['/sse', '/line-stream', '/jsonl-stream', '/raw-stream'],
+      bodySamples: [
+        '{"topic":"demo","userId":"u_001"}',
+        '{"topic":"demo","userId":"u_001"}',
+        '{"topic":"demo","userId":"u_001"}',
+        'hello stream'
+      ],
+      methods: ['GET', 'POST'],
+      parseModeLabels: ['协议默认', '自动 JSON'],
+      protocolIndex: 0,
+      methodIndex: 0,
+      parseModeIndex: 0,
+      serverUrl: `http://${host}:3000/sse`,
+      requestBody: '{"topic":"demo","userId":"u_001"}',
+      statusText: '未连接',
+      chunkCount: 0,
+      messageCount: 0,
+      logs: [],
+      activeConnection: null
     }
   },
-  onLoad() {
-    this.setupSSEEventListeners()
-  },
   onUnload() {
-    this.cleanupSSE()
+    this.stopStream()
   },
   methods: {
-    shortId(id) {
-      if (!id) return ''
-      return id.length > 8 ? id.slice(0, 4) + '…' + id.slice(-3) : id
-    },
-    addConnection() {
-      if (!this.serverUrl || this.serverUrl.length === 0) {
-        this.resultMessage = '请输入服务器 URL'
-        return
+    pickProtocol(index) {
+      this.protocolIndex = index
+      const path = this.protocolPaths[index]
+      const value = this.protocolValues[index]
+      const url = this.serverUrl
+      const schemeIndex = url.indexOf('://')
+      const searchStart = schemeIndex === -1 ? 0 : schemeIndex + 3
+      const slashIndex = url.indexOf('/', searchStart)
+      const origin = slashIndex === -1 ? url : url.slice(0, slashIndex)
+      this.serverUrl = `${origin}${path}`
+      if (this.shouldReplaceRequestBody()) {
+        this.requestBody = this.defaultRequestBody(index)
       }
-      const requestId = `sse_${Date.now()}_${Math.floor(Math.random() * 1000)}`
-      this.connections.unshift({
-        requestId,
-        url: this.serverUrl,
-        isConnected: false,
-        status: '待连接',
-        messages: []
-      })
-      this.resultMessage = `已添加连接：${requestId}`
+      this.statusText = `已切换协议: ${value}`
     },
-    resolveUrlForAndroid(url) {
-      let resolved = url
-      // #ifdef APP-ANDROID
-      if (resolved && resolved.length > 0) {
-        const patterns = [
-          '://localhost',
-          '://127.0.0.1',
-          '://[::1]'
-        ]
-        for (let i = 0; i < patterns.length; i++) {
-          const p = patterns[i]
-          if (resolved.indexOf(p) !== -1) {
-            resolved = resolved.replace(p, '://10.0.2.2')
-          }
+    pickMethod(index) {
+      this.methodIndex = index
+      if (index === 1 && this.shouldReplaceRequestBody()) {
+        this.requestBody = this.defaultRequestBody(this.protocolIndex)
+      }
+    },
+    pickParseMode(index) {
+      this.parseModeIndex = index
+    },
+    defaultRequestBody(protocolIndex) {
+      const sample = this.bodySamples[protocolIndex]
+      return sample || ''
+    },
+    shouldReplaceRequestBody() {
+      const current = (this.requestBody || '').trim()
+      if (current.length === 0) return true
+      return this.bodySamples.includes(current)
+    },
+    parseBody() {
+      const text = (this.requestBody || '').trim()
+      if (text.length === 0) return null
+      if (text.startsWith('{') || text.startsWith('[')) {
+        try {
+          return JSON.parse(text)
+        } catch (error) {
+          return text
         }
       }
-      // #endif
-      return resolved
+      return text
     },
-    connectConnection(requestId) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId)
-      if (idx < 0) return
-      const conn = this.connections[idx]
-      conn.status = '连接中…'
-      const finalUrl = this.resolveUrlForAndroid(conn.url)
-      if (finalUrl !== conn.url) {
-        this.connections[idx].url = finalUrl
-        this.connections[idx].status = '检测到 Android 环境，已将 localhost 映射为 10.0.2.2'
-      }
-      sseConnectApi({
-        url: finalUrl,
-        requestId: conn.requestId,
-        headers: { 'User-Agent': 'UniApp-Vue3-SSE-Plugin' },
-        fail: (err) => {
-          conn.status = `连接失败: ${JSON.stringify(err)}`
-        },
-        complete: () => {}
-      })
-    },
-    disconnectConnection(requestId) {
-      sseCloseApi(requestId)
-    },
-    connectAll() {
-      for (let i = 0; i < this.connections.length; i++) {
-        this.connectConnection(this.connections[i].requestId)
-      }
-    },
-    disconnectAll() {
-      for (let i = 0; i < this.connections.length; i++) {
-        sseCloseApi(this.connections[i].requestId)
-      }
-    },
-    removeConnection(requestId) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId)
-      if (idx < 0) return
-      if (this.connections[idx].isConnected) {
-        sseCloseApi(requestId)
-      }
-      this.connections.splice(idx, 1)
-    },
-    setupSSEEventListeners() {
-      sseAddEventListenerApi({
-        onOpen: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId)
-          if (idx < 0) return
-          this.connections[idx].isConnected = true
-          this.connections[idx].status = `连接成功: ${event.requestId}`
-        },
-        onMessage: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId)
-          if (idx < 0) return
-          this.addMessage(event.requestId, event.message)
-        },
-        onError: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId)
-          if (idx < 0) return
-          this.connections[idx].status = `错误: ${event.error}`
-        },
-        onClose: (event) => {
-          const idx = this.connections.findIndex(c => c.requestId === event.requestId)
-          if (idx < 0) return
-          this.connections[idx].isConnected = false
-          this.connections[idx].status = `已关闭: ${event.requestId}`
-        }
-      })
-    },
-    addMessage(requestId, content) {
-      const idx = this.connections.findIndex(c => c.requestId === requestId)
-      if (idx < 0) return
+    nowText() {
       const now = new Date()
       const hh = now.getHours().toString().padStart(2, '0')
       const mm = now.getMinutes().toString().padStart(2, '0')
       const ss = now.getSeconds().toString().padStart(2, '0')
-      this.connections[idx].messages.unshift({ time: `${hh}:${mm}:${ss}`, content })
-      if (this.connections[idx].messages.length > 50) {
-        this.connections[idx].messages = this.connections[idx].messages.slice(0, 50)
+      return `${hh}:${mm}:${ss}`
+    },
+    stringifySafe(value, fallback = '') {
+      if (typeof value === 'string') return value
+      try {
+        const text = JSON.stringify(value)
+        return text == null ? fallback : text
+      } catch (error) {
+        return fallback
       }
     },
-    cleanupSSE() {
-      this.disconnectAll()
-      // 传 null/undefined 以清空全局监听
-      sseRemoveEventListenerApi(null)
+    pushLog(kind, text) {
+      this.logs.unshift({
+        time: this.nowText(),
+        kind,
+        text: typeof text === 'string' ? text : this.stringifySafe(text, '')
+      })
+      if (this.logs.length > 80) {
+        this.logs = this.logs.slice(0, 80)
+      }
+    },
+    stopStream() {
+      if (this.activeConnection) {
+        try {
+          this.activeConnection.abort()
+        } catch (error) {
+        }
+        this.activeConnection = null
+      }
+      this.statusText = '已停止'
+    },
+    startStream() {
+      this.stopStream()
+      this.logs = []
+      this.chunkCount = 0
+      this.messageCount = 0
+
+      const inputUrl = this.serverUrl
+      const url = normalizeRuntimeUrl(inputUrl)
+      const protocol = this.protocolValues[this.protocolIndex]
+      const method = this.methods[this.methodIndex]
+      const autoParseJson = this.parseModeIndex === 1 ? true : null
+      const body = method === 'POST' ? this.parseBody() : null
+      const headers = { 'X-Demo-Protocol': `${protocol}` }
+
+      if (url !== inputUrl) {
+        this.serverUrl = url
+        this.pushLog('config', `runtime remapped localhost to ${url}`)
+      }
+
+      if (method === 'POST' && body != null) {
+        headers['Content-Type'] = typeof body === 'string'
+          ? 'text/plain; charset=utf-8'
+          : 'application/json; charset=utf-8'
+      }
+
+      const connection = connectStream({
+        url,
+        method,
+        protocol,
+        autoParseJson,
+        debug: true,
+        headers,
+        body
+      })
+
+      this.activeConnection = connection
+      this.statusText = `连接中: ${protocol}`
+
+      connection.onOpen((evt) => {
+        if (this.activeConnection !== connection) return
+        this.statusText = evt.statusCode > 0 ? `已连接 HTTP ${evt.statusCode}` : '已连接'
+        this.pushLog('open', this.stringifySafe(evt.headers, 'open'))
+      })
+
+      connection.onChunk((evt) => {
+        if (this.activeConnection !== connection) return
+        this.chunkCount += 1
+        this.pushLog('chunk', evt.text)
+      })
+
+      connection.onMessage((evt) => {
+        if (this.activeConnection !== connection) return
+        this.messageCount += 1
+        const eventName = evt.event != null ? evt.event : 'message'
+        this.pushLog(eventName, evt.rawText)
+      })
+
+      connection.onError((err) => {
+        if (this.activeConnection !== connection) return
+        this.statusText = `错误: ${err.errMsg}`
+        this.pushLog('error', err.errMsg)
+      })
+
+      connection.onComplete(() => {
+        if (this.activeConnection !== connection) return
+        this.activeConnection = null
+        this.statusText = '已完成'
+        this.pushLog('complete', 'stream completed')
+      })
     }
   }
 }
 </script>
 
 <style>
-  .container {
-    background: #f5f5f5;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    height: 100vh;
-    overflow: hidden;
-  }
+.page {
+  height: 100vh;
+  background-color: #f5f2ed;
+}
 
-  .header {
-    padding: 12px 20px 10px;
-    text-align: center;
-    background: #f5f5f5;
-    border-bottom: 1px solid #eaeaea;
-    flex-shrink: 0;
-  }
+.container {
+  padding: 32rpx 24rpx 64rpx;
+}
 
-  .app-title {
-    font-size: 24px;
-    font-weight: bold;
-    color: #333333;
-    margin-bottom: 5px;
-  }
+.hero {
+  margin-bottom: 40rpx;
+}
 
-  .app-subtitle {
-    font-size: 14px;
-    color: #666666;
-  }
+.title {
+  font-size: 32rpx;
+  font-weight: 400;
+  color: #1a1714;
+  letter-spacing: 1rpx;
+}
 
-  .content {
-    padding: 0 20px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-  }
-  .page-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
+.subtitle {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 15px;
+  line-height: 24px;
+  color: #6b665c;
+}
 
-  .card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 25px 20px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  }
+.card {
+  margin-bottom: 24rpx;
+  padding: 24rpx;
+  border-radius: 8rpx;
+  background-color: #f5f2ed;
+  border: 1px solid #ede6de;
+}
 
-  .card-title {
-    font-size: 18px;
-    font-weight: bold;
-    color: #333333;
-    text-align: center;
-    margin-bottom: 10px;
-  }
+.section-title {
+  display: block;
+  margin-bottom: 24rpx;
+  font-size: 14px;
+  color: #8a8175;
+  letter-spacing: 2rpx;
+}
 
-  .card-description {
-    font-size: 14px;
-    color: #666666;
-    text-align: center;
-    line-height: 1.6;
-    margin-bottom: 25px;
-  }
+.label {
+  display: block;
+  margin-bottom: 8rpx;
+  font-size: 13px;
+  color: #6b665c;
+}
 
-  .button-group {
-    display: flex;
-    flex-direction: column;
-  }
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 16rpx;
+}
 
-  .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 15px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    margin-bottom: 10px;
-  }
+.tab {
+  padding: 8rpx 16rpx;
+  margin-right: 12rpx;
+  margin-bottom: 12rpx;
+  border-radius: 4rpx;
+  border: 1px solid #ede6de;
+  background-color: transparent;
+}
 
-  .btn:last-child { margin-bottom: 0; }
-  .btn:active { transform: scale(0.98); }
-  .btn-primary { background: #007aff; box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.3); }
-  .btn-secondary { background: #34c759; box-shadow: 0 4rpx 12rpx rgba(52, 199, 89, 0.3); }
-  .btn-danger { background: #ff3b30; box-shadow: 0 4rpx 12rpx rgba(255, 59, 48, 0.3); }
+.tab.active {
+  border-color: #2d2a25;
+  background-color: #2d2a25;
+}
 
-  .btn-text {
-    font-size: 16px;
-    font-weight: 700;
-    color: #ffffff;
-  }
+.tab-text {
+  font-size: 14px;
+  color: #6b665c;
+}
 
-  .result-card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-left: 3px solid #007aff;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  }
+.tab-text-active {
+  color: #f5f2ed;
+}
 
-  .result-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #333333;
-    margin-bottom: 8px;
-  }
+.input,
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 24rpx;
+  font-size: 15px;
+  color: #2d2a25;
+  border: 1px solid #ede6de;
+  border-radius: 4rpx;
+  background-color: #f5f2ed;
+}
 
-  .result-content {
-    font-size: 13px;
-    color: #666666;
-    line-height: 1.5;
-  }
+.textarea {
+  min-height: 180rpx;
+}
 
-  .footer {
-    padding: 12px 20px;
-    text-align: center;
-    background: #f5f5f5;
-    border-top: 1px solid #eaeaea;
-    flex-shrink: 0;
-  }
-  .footer-text { font-size: 12px; color: #999999; }
+.actions {
+  display: flex;
+  margin-bottom: 24rpx;
+}
 
-  .input-group { margin-bottom: 20px; }
-  .input-label { font-size: 14px; color: #333333; margin-bottom: 8px; display: flex; }
-  .input-field {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    font-size: 14px;
-    background: #ffffff;
-  }
-  .input-field:focus { border-color: #007aff; }
+.btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+  border-radius: 4rpx;
+  border: 1px solid #ede6de;
+}
 
-  .message-container { max-height: 200px; overflow: hidden; }
-  .message-item { padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
-  .message-item:last-child { border-bottom: none; }
-  .message-time { font-size: 12px; color: #999999; margin-bottom: 4px; display: flex; }
-  .message-content { font-size: 13px; color: #333333; line-height: 1.4; }
-  .no-messages { font-size: 13px; color: #999999; text-align: center; padding: 20px 0; }
+.btn.primary {
+  margin-right: 16rpx;
+  border-color: #2d2a25;
+  background-color: #2d2a25;
+}
 
-  .status-card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-left: 3px solid #ff9500;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  }
-  .status-title { font-size: 14px; font-weight: 700; color: #333333; margin-bottom: 8px; }
-  .status-content { font-size: 13px; color: #666666; line-height: 1.5; }
+.btn-text {
+  font-size: 15px;
+  color: #2d2a25;
+}
+
+.primary-text {
+  color: #f5f2ed;
+}
+
+.status-box {
+  padding: 16rpx;
+  border-radius: 4rpx;
+  background-color: #ede6de;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4rpx 0;
+}
+
+.divider {
+  height: 1px;
+  margin: 12rpx 0;
+  border-bottom: 1px solid #dfd8ce;
+}
+
+.status-label {
+  font-size: 14px;
+  color: #6b665c;
+}
+
+.status-value {
+  font-size: 14px;
+  color: #2d2a25;
+}
+
+.log-card {
+  padding-bottom: 12rpx;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.log-item {
+  padding: 16rpx 0;
+  border-bottom: 1px solid #ede6de;
+}
+
+.log-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+
+.log-time {
+  font-size: 12px;
+  color: #8a8175;
+}
+
+.log-kind {
+  font-size: 12px;
+  color: #8a9980;
+}
+
+.log-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #2d2a25;
+  word-break: break-all;
+}
+
+.empty {
+  padding: 24rpx 0;
+  text-align: center;
+  font-size: 14px;
+  color: #8a8175;
+}
 </style>
