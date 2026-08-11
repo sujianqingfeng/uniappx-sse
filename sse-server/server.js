@@ -303,10 +303,44 @@ const handleRawStream = (req, res, requestInfo) => {
   )
 }
 
+const handleBodyCheck = (req, res, requestInfo) => {
+  setStreamHeaders(res, 'text/event-stream; charset=utf-8')
+
+  logRequestInfo('/body-check', req, requestInfo)
+
+  const body = requestInfo.body
+  const messages = body != null && typeof body == 'object' && Array.isArray(body.messages)
+    ? body.messages
+    : null
+  const firstMessage = messages != null && messages.length > 0 ? messages[0] : null
+  const result = {
+    ok: messages != null
+      && messages.length == 1
+      && firstMessage != null
+      && firstMessage.role == 'user'
+      && firstMessage.content == '你好',
+    checks: {
+      bodyIsObject: body != null && typeof body == 'object' && !Array.isArray(body),
+      messagesPresent: messages != null,
+      messageCount: messages != null ? messages.length : 0,
+      firstMessageRole: firstMessage != null ? firstMessage.role : null,
+      firstMessageContent: firstMessage != null ? firstMessage.content : null
+    },
+    contentType: requestInfo.contentType || null,
+    bodyText: requestInfo.bodyText,
+    body
+  }
+
+  res.write('event: body-check\n')
+  res.write(`data: ${JSON.stringify(result)}\n\n`)
+  res.end()
+}
+
 registerStreamRoute('/sse', handleSseStream)
 registerStreamRoute('/line-stream', handleLineStream)
 registerStreamRoute('/jsonl-stream', handleJsonlStream)
 registerStreamRoute('/raw-stream', handleRawStream)
+registerStreamRoute('/body-check', handleBodyCheck)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

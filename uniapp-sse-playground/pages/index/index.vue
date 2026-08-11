@@ -112,10 +112,19 @@ import { connectStream } from '@/uni_modules/hens-sse'
 
 const harmonySimulatorHost = '192.168.123.56'
 
-function resolveDefaultHost() {
-  // #ifdef APP-ANDROID
-  return '10.0.2.2'
+function isAndroidAppRuntime() {
+  // #ifdef APP-PLUS
+  try {
+    return uni.getSystemInfoSync().platform === 'android'
+  } catch (error) {
+    return false
+  }
   // #endif
+  return false
+}
+
+function resolveDefaultHost() {
+  if (isAndroidAppRuntime()) return '10.0.2.2'
   // #ifdef APP-HARMONY
   return harmonySimulatorHost
   // #endif
@@ -124,20 +133,20 @@ function resolveDefaultHost() {
 
 function normalizeRuntimeUrl(url) {
   let resolved = url || ''
-  // #ifdef APP-ANDROID
-  const androidPatterns = [
-    '://localhost',
-    '://127.0.0.1',
-    '://[::1]'
-  ]
+  if (isAndroidAppRuntime()) {
+    const androidPatterns = [
+      '://localhost',
+      '://127.0.0.1',
+      '://[::1]'
+    ]
 
-  for (let i = 0; i < androidPatterns.length; i += 1) {
-    const pattern = androidPatterns[i]
-    if (resolved.indexOf(pattern) !== -1) {
-      resolved = resolved.replace(pattern, '://10.0.2.2')
+    for (let i = 0; i < androidPatterns.length; i += 1) {
+      const pattern = androidPatterns[i]
+      if (resolved.indexOf(pattern) !== -1) {
+        resolved = resolved.replace(pattern, '://10.0.2.2')
+      }
     }
   }
-  // #endif
   // #ifdef APP-HARMONY
   const harmonyPatterns = [
     '://localhost',

@@ -74,7 +74,7 @@ connection.abort()
 - `headers?: UTSJSONObject | null`
   自定义请求头。
 - `body?: UTSJSONObject | string | null`
-  请求体。建议只在 `POST` / `PUT` / `PATCH` / `DELETE` 时传入。
+  请求体。建议只在 `POST` / `PUT` / `PATCH` / `DELETE` 时传入。发送 JSON 时，为兼容传统 uni-app Android 的 JS → UTS 对象桥接，推荐先执行 `JSON.stringify`，再传入字符串。
 - `timeout?: number | null`
   超时时间，单位毫秒。App 平台默认 `60000`。
 - `protocol?: 'sse' | 'line' | 'jsonl' | 'raw' | null`
@@ -256,19 +256,48 @@ const connection = connectStream({
 ### POST + JSON 请求体
 
 ```ts
+const body = {
+  topic: 'demo',
+  messages: [
+    {
+      role: 'user',
+      content: '你好'
+    }
+  ]
+}
+
 const connection = connectStream({
   url: 'http://localhost:3000/sse',
   method: 'POST',
   protocol: 'sse',
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json; charset=utf-8'
   },
-  body: {
-    topic: 'demo',
-    userId: 'u_001'
-  }
+  body: JSON.stringify(body)
 })
 ```
+
+#### 传统 uni-app Android 兼容说明
+
+在部分传统 uni-app Android 运行环境中，直接把普通 JavaScript 对象作为 `body` 传给 UTS 插件时，嵌套数组中的对象可能在 JS → UTS 桥接过程中丢失属性。例如页面传入的 `messages: [{ role: 'user', content: '你好' }]`，服务端可能收到 `messages: [{}]`。
+
+发送 JSON 请求时，建议统一使用以下方式：
+
+```ts
+const bodyText = typeof body == 'string' ? body : JSON.stringify(body)
+
+const connection = connectStream({
+  url,
+  method: 'POST',
+  protocol: 'sse',
+  headers: {
+    'Content-Type': 'application/json; charset=utf-8'
+  },
+  body: bodyText
+})
+```
+
+注意：`body` 序列化为字符串后，JSON 请求的 `Content-Type` 仍应设置为 `application/json; charset=utf-8`，不要改成 `text/plain`。
 
 ### 发送纯文本请求体
 
